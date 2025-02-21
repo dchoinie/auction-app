@@ -1,12 +1,14 @@
 import { type Config } from "drizzle-kit";
+import * as dotenv from "dotenv";
 
-import { env } from "~/env";
+// Load .env.local
+dotenv.config({ path: ".env.local" });
 
 export default {
   schema: "./src/server/db/schema.ts",
   dialect: "postgresql",
   dbCredentials: {
-    url: env.DATABASE_URL,
+    url: process.env.POSTGRES_URL!,
   },
   tablesFilter: ["auction-app_*"],
 } satisfies Config;
