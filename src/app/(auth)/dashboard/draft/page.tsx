@@ -249,7 +249,7 @@ export default function DraftRoomPage() {
 
   return (
     <Container>
-      <div className="grid grid-cols-12 gap-4">
+      <div className="my-12 grid grid-cols-12 gap-4">
         <div className="col-span-9 rounded-lg border p-4">
           <div className="flex items-center justify-between">
             <h1 className="text-2xl font-bold">Draft Room</h1>
@@ -295,18 +295,31 @@ export default function DraftRoomPage() {
 
           {/* Selected Player and Current Bid */}
           {selectedPlayer && (
-            <div className="mb-6 rounded-lg border p-4">
-              <h2 className="text-xl font-bold">
-                {selectedPlayer.firstName} {selectedPlayer.lastName}
-              </h2>
-              <p className="text-gray-600">
-                {selectedPlayer.position} - {selectedPlayer.nflTeamName}
-              </p>
-              {currentBid && (
-                <div className="mt-2 text-lg">
-                  Highest Bid: ${currentBid.amount} by {currentBid.userName}
+            <div className="mb-6 rounded-lg border-2 border-blue-500 bg-blue-50 p-6 shadow-md">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-2xl font-bold text-blue-800">
+                    {selectedPlayer.firstName} {selectedPlayer.lastName}
+                  </h2>
+                  <p className="text-lg text-blue-600">
+                    {selectedPlayer.position} - {selectedPlayer.nflTeamName}
+                  </p>
                 </div>
-              )}
+
+                {currentBid && (
+                  <div className="rounded-lg border-2 border-green-500 bg-green-100 p-4">
+                    <div className="text-sm font-medium text-green-800">
+                      Current Leader
+                    </div>
+                    <div className="text-2xl font-bold text-green-700">
+                      ${currentBid.amount}
+                    </div>
+                    <div className="text-sm text-green-600">
+                      by {currentBid.userName}
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           )}
 
@@ -332,13 +345,22 @@ export default function DraftRoomPage() {
                 </button>
                 <button
                   onClick={handleBidSubmit}
-                  className="rounded bg-blue-500 px-4 py-2 text-white"
+                  className={`rounded px-4 py-2 text-white ${
+                    !selectedPlayer ||
+                    (currentBid && bidAmount <= currentBid.amount)
+                      ? "cursor-not-allowed bg-gray-400"
+                      : "bg-blue-500 hover:bg-blue-600"
+                  }`}
                   disabled={
                     !selectedPlayer ||
                     (currentBid && bidAmount <= currentBid.amount)
                   }
                 >
-                  Place Bid
+                  {!selectedPlayer
+                    ? "Select a Player"
+                    : currentBid && bidAmount <= currentBid.amount
+                      ? `Bid must be > $${currentBid.amount}`
+                      : "Place Bid"}
                 </button>
               </div>
 
