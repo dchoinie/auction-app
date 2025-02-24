@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect } from "react";
 import Link from "next/link";
 import { useUser } from "@clerk/nextjs";
 import Container from "~/components/Container";
@@ -7,10 +8,16 @@ import CurrentTeams from "~/components/CurrentTeams";
 import { useTeamsStore } from "~/store/teams";
 
 export default function DashboardPage() {
-  const { teams } = useTeamsStore();
+  const { teams, hasFetched, fetchTeams } = useTeamsStore();
   const { user } = useUser();
 
   const userTeam = teams.find((team) => team.ownerId === user?.id);
+
+  useEffect(() => {
+    if (!hasFetched) {
+      void fetchTeams();
+    }
+  }, [hasFetched, fetchTeams]);
 
   if (!userTeam) {
     return (

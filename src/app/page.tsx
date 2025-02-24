@@ -1,7 +1,15 @@
-import { SignInButton, SignUpButton } from "@clerk/nextjs";
+"use client";
+
+import { SignInButton, SignUpButton, useUser } from "@clerk/nextjs";
 import { redirect } from "next/navigation";
 
 export default function LandingPage() {
+  const { user } = useUser();
+
+  if (user) {
+    redirect("/dashboard");
+  }
+
   return (
     <main className="container mx-auto flex min-h-screen flex-col items-center justify-center p-4 text-center">
       <div className="max-w-2xl">

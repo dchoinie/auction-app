@@ -4,14 +4,14 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "dev": "concurrently \"next dev\" \"partykit dev\"",
     "build": "next build",
-    "db:generate": "drizzle-kit generate",
-    "db:migrate": "drizzle-kit migrate",
-    "db:push": "drizzle-kit push",
-    "db:studio": "drizzle-kit studio",
-    "dev": "next dev",
+    "start": "next start",
     "lint": "next lint",
-    "start": "next start"
+    "db:push": "drizzle-kit push:pg",
+    "db:studio": "drizzle-kit studio",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate"
   },
   "dependencies": {
     "@clerk/clerk-react": "^5.23.0",
@@ -47,6 +47,7 @@
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.1.1",
     "cmdk": "^1.0.0",
+    "concurrently": "^9.1.2",
     "date-fns": "^3.6.0",
     "dotenv": "^16.4.7",
     "drizzle-orm": "^0.33.0",

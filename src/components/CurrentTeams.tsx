@@ -5,14 +5,8 @@ import { useTeamsStore } from "~/store/teams";
 import { useRouter } from "next/navigation";
 
 export default function CurrentTeams() {
-  const { teams, isLoading, error, fetchTeams, hasFetched } = useTeamsStore();
+  const { teams, isLoading, error, hasFetched } = useTeamsStore();
   const router = useRouter();
-
-  useEffect(() => {
-    if (!hasFetched) {
-      void fetchTeams();
-    }
-  }, [hasFetched, fetchTeams]);
 
   if (isLoading) return <div>Loading teams...</div>;
   if (error) return <div>Error: {error}</div>;

@@ -25,12 +25,17 @@ const ROSTER_POSITIONS = [
 
 export default function TeamDetailsPage() {
   const { teamId } = useParams();
-  const { teams } = useTeamsStore();
+  const { teams, hasFetched, fetchTeams } = useTeamsStore();
   const { rosters, isLoading, error, fetchRoster } = useRosterStore();
 
   const teamIdNumber = Number(teamId);
   const team = teams.find((t) => t.id === teamIdNumber);
-  const roster = rosters[teamIdNumber];
+
+  useEffect(() => {
+    if (!hasFetched) {
+      void fetchTeams();
+    }
+  }, [hasFetched, fetchTeams]);
 
   useEffect(() => {
     if (teamId) {
@@ -69,7 +74,7 @@ export default function TeamDetailsPage() {
           </thead>
           <tbody className="divide-y divide-gray-200">
             {ROSTER_POSITIONS.map((position) => {
-              const player = roster?.[position];
+              const player = rosters[teamIdNumber]?.[position];
               return (
                 <tr key={position} className="hover:bg-gray-50">
                   <td className="px-6 py-4 text-sm font-medium text-gray-900">
