@@ -19,7 +19,10 @@ export default function NFLPlayerSelect({
 
   const selectedPlayer = players.find((p) => p.id === selectedPlayerId);
 
-  const filteredPlayers = [...players]
+  // Filter out players that have already been drafted
+  const availablePlayers = players.filter((player) => !player.assignedTeamId);
+
+  const filteredPlayers = [...availablePlayers]
     .sort((a, b) => a.id - b.id)
     .filter(
       (player) =>

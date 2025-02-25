@@ -22,6 +22,7 @@ interface DraftBid {
   userName: string;
   amount: number;
   timestamp: number;
+  teamId: number;
 }
 
 interface DraftUser {
@@ -87,7 +88,7 @@ export default function DraftRoomPage() {
   const { user } = useUser();
   const [activeUsers, setActiveUsers] = useState<DraftUser[]>([]);
   const [isConnected, setIsConnected] = useState(false);
-  const { players: nflPlayers, fetchPlayers } = useNFLPlayersStore();
+  const { players, fetchPlayers, updatePlayer } = useNFLPlayersStore();
   const [selectedPlayer, setSelectedPlayer] = useState<NFLPlayer | null>(null);
   const [currentBid, setCurrentBid] = useState<DraftBid | null>(null);
   const [bidAmount, setBidAmount] = useState(1);
@@ -256,7 +257,7 @@ export default function DraftRoomPage() {
   };
 
   const handlePlayerSelect = (playerId: number) => {
-    const player = nflPlayers.find((p) => p.id === playerId);
+    const player = players.find((p) => p.id === playerId);
     if (player && user) {
       setSelectedPlayer(player);
       setCurrentBid(null);
@@ -273,6 +274,10 @@ export default function DraftRoomPage() {
   const handleBidSubmit = () => {
     if (!user || !selectedPlayer) return;
 
+    // Find the user's team
+    const userTeam = teams.find((team) => team.ownerId === user.id);
+    if (!userTeam) return;
+
     // Cancel any active countdown
     setShowCountdown(false);
 
@@ -281,6 +286,7 @@ export default function DraftRoomPage() {
       userName: `${user.firstName} ${user.lastName}`,
       amount: bidAmount,
       timestamp: Date.now(),
+      teamId: userTeam.id,
     };
 
     console.log("Sending bid:", newBid);
@@ -308,11 +314,58 @@ export default function DraftRoomPage() {
     setBidAmount(Math.max(minBid, bidAmount + amount));
   };
 
-  const handleCountdownComplete = useCallback(() => {
+  const handleCountdownComplete = useCallback(async () => {
     setShowCountdown(false);
-    // Handle auction completion here
-    console.log("Auction complete!");
-  }, []);
+
+    if (!selectedPlayer || !currentBid) return;
+
+    try {
+      const token = await window.Clerk.session.getToken();
+      console.log("Got auth token:", !!token);
+
+      const response = await fetch(`/api/nfl-players/${selectedPlayer.id}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          assignedTeamId: currentBid.teamId,
+          draftedAmount: currentBid.amount,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Failed to update player: ${errorText}`);
+      }
+
+      const updatedPlayer = await response.json();
+
+      // Update the player in the store
+      updatePlayer(selectedPlayer.id, {
+        assignedTeamId: currentBid.teamId,
+        draftedAmount: currentBid.amount,
+      });
+
+      // Clear the selected player and current bid
+      setSelectedPlayer(null);
+      setCurrentBid(null);
+      setBidHistory([]);
+      setBidAmount(1);
+
+      // Notify other users via websocket
+      socket.send(
+        JSON.stringify({
+          type: "player_drafted",
+          player: updatedPlayer,
+          bid: currentBid,
+        }),
+      );
+    } catch (error) {
+      console.error("Error completing auction:", error);
+    }
+  }, [selectedPlayer, currentBid, socket, updatePlayer]);
 
   const handleCountdownCancel = useCallback(() => {
     setShowCountdown(false);
@@ -380,12 +433,20 @@ export default function DraftRoomPage() {
                     <button
                       onClick={() => {
                         if (!user) return;
+
+                        // Find the user's team
+                        const userTeam = teams.find(
+                          (team) => team.ownerId === user.id,
+                        );
+                        if (!userTeam) return;
+
                         // Create initial bid
                         const initialBid: DraftBid = {
                           userId: user.id,
                           userName: `${user.firstName} ${user.lastName}`,
                           amount: 1,
                           timestamp: Date.now(),
+                          teamId: userTeam.id,
                         };
 
                         // Update local state

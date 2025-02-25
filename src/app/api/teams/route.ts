@@ -1,5 +1,5 @@
 import { db } from "~/server/db";
-import { teams } from "~/server/db/schema";
+import { teams, rosters } from "~/server/db/schema";
 import { auth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 
@@ -74,6 +74,12 @@ export async function POST(request: Request) {
         ownerId: userId,
       })
       .returning();
+
+    // Create empty roster for the team
+    await db.insert(rosters).values({
+      teamId: newTeam[0].id,
+      players: [], // Initialize with empty array
+    });
 
     return NextResponse.json(newTeam[0]);
   } catch (error) {
