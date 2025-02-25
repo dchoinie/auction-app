@@ -327,7 +327,8 @@ export default function DraftRoomPage() {
       const token = await window.Clerk.session.getToken();
       console.log("Got auth token:", !!token);
 
-      const response = await fetch(`/api/nfl-players/${selectedPlayer.id}`, {
+      // Existing NFL player update
+      await fetch(`/api/nfl-players/${selectedPlayer.id}`, {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
@@ -339,12 +340,17 @@ export default function DraftRoomPage() {
         }),
       });
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Failed to update player: ${errorText}`);
-      }
-
-      const updatedPlayer = await response.json();
+      // New: Update team's roster
+      await fetch(`/api/rosters/${currentBid.teamId}/add-player`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          playerId: selectedPlayer.id,
+          position: selectedPlayer.position,
+        }),
+      });
 
       // Update the player in the store
       updatePlayer(selectedPlayer.id, {
@@ -362,12 +368,12 @@ export default function DraftRoomPage() {
       socket.send(
         JSON.stringify({
           type: "player_drafted",
-          player: updatedPlayer,
+          player: selectedPlayer,
           bid: currentBid,
         }),
       );
     } catch (error) {
-      console.error("Error completing auction:", error);
+      console.error("Error finalizing draft:", error);
     }
   }, [selectedPlayer, currentBid, socket, updatePlayer]);
 
