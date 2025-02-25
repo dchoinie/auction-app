@@ -8,10 +8,10 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "db:push": "drizzle-kit push:pg",
-    "db:studio": "drizzle-kit studio",
+    "db:push": "npx drizzle-kit push",
+    "db:studio": "npx drizzle-kit studio",
     "db:generate": "drizzle-kit generate",
-    "db:migrate": "drizzle-kit migrate"
+    "db:migrate": "npx drizzle-kit migrate"
   },
   "dependencies": {
     "@clerk/clerk-react": "^5.23.0",
@@ -44,6 +44,7 @@
     "@radix-ui/react-toggle-group": "^1.1.0",
     "@radix-ui/react-tooltip": "^1.1.2",
     "@t3-oss/env-nextjs": "^0.10.1",
+    "@types/papaparse": "^5.3.15",
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.1.1",
     "cmdk": "^1.0.0",
@@ -57,6 +58,7 @@
     "lucide-react": "^0.439.0",
     "next": "^14.2.4",
     "next-themes": "^0.3.0",
+    "papaparse": "^5.5.2",
     "partysocket": "1.0.2",
     "postgres": "^3.4.4",
     "react": "^18.3.1",

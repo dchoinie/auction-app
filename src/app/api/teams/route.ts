@@ -3,16 +3,33 @@ import { teams } from "~/server/db/schema";
 import { auth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 
+export interface TeamResponse {
+  id: number;
+  name: string;
+  ownerName: string;
+  ownerId: string;
+  draftOrder: number | null;
+}
+
 // GET /api/teams - fetch all teams
 export async function GET() {
   try {
     const { userId } = await auth();
-
     if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const allTeams = await db.select().from(teams);
+    const allTeams = await db.query.teams.findMany({
+      orderBy: (teams, { asc }) => [asc(teams.draftOrder)],
+      columns: {
+        id: true,
+        name: true,
+        ownerName: true,
+        ownerId: true,
+        draftOrder: true,
+      },
+    });
+
     return NextResponse.json(allTeams);
   } catch (error) {
     console.error("Error fetching teams:", error);

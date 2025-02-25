@@ -68,7 +68,7 @@ export default class DraftRoom {
     this.connections.add(conn);
     console.log("New connection:", conn.id);
 
-    // Send initial state to the new connection
+    // Always send initial state with users, regardless of bids
     conn.send(
       JSON.stringify({
         type: "init_state",
@@ -159,7 +159,6 @@ export default class DraftRoom {
                 type: "select_player",
                 player: data.player,
               }),
-              [sender.id],
             );
           }
           break;

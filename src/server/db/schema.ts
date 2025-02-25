@@ -28,19 +28,15 @@ export const teams = createTable(
   "team",
   {
     id: serial("id").primaryKey(),
-    ownerId: text("owner_id").notNull(),
-    ownerName: text("owner_name").notNull(),
-    name: varchar("name", { length: 256 }).notNull(),
+    name: varchar("name", { length: 255 }).notNull(),
+    ownerName: varchar("owner_name", { length: 255 }).notNull(),
+    ownerId: varchar("owner_id", { length: 255 }).notNull(),
+    draftOrder: integer("draft_order"),
     totalBudget: integer("total_budget").notNull().default(200),
-    createdAt: timestamp("created_at", { withTimezone: true })
-      .default(sql`CURRENT_TIMESTAMP`)
-      .notNull(),
-    updatedAt: timestamp("updated_at", { withTimezone: true }).$onUpdate(
-      () => new Date(),
-    ),
+    createdAt: timestamp("created_at").defaultNow(),
+    updatedAt: timestamp("updated_at").defaultNow(),
   },
   (table) => ({
-    ownerIdIdx: index("owner_id_idx").on(table.ownerId),
     nameIdx: index("name_idx").on(table.name),
   }),
 );

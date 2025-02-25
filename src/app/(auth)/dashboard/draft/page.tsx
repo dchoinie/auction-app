@@ -5,6 +5,8 @@ import { useUser } from "@clerk/nextjs";
 import { useRouter } from "next/navigation";
 import Container from "~/components/Container";
 import { usePartySocket } from "partysocket/react";
+import { useNFLPlayersStore } from "~/store/nfl-players";
+import NFLPlayerSelect from "./components/NFLPlayerSelect";
 
 interface NFLPlayer {
   id: number;
@@ -63,17 +65,35 @@ interface BidHistoryItem {
   isHighestBid: boolean;
 }
 
+interface TeamResponse {
+  id: number;
+  name: string;
+  ownerName: string;
+  ownerId: string;
+  draftOrder: number | null;
+}
+
+interface Team {
+  id: number;
+  name: string;
+  ownerName: string;
+  ownerId: string;
+  draftOrder: number | null;
+}
+
 export default function DraftRoomPage() {
   const router = useRouter();
   const { user } = useUser();
   const [activeUsers, setActiveUsers] = useState<DraftUser[]>([]);
   const [isConnected, setIsConnected] = useState(false);
-  const [nflPlayers, setNflPlayers] = useState<NFLPlayer[]>([]);
+  const { players: nflPlayers, fetchPlayers } = useNFLPlayersStore();
   const [selectedPlayer, setSelectedPlayer] = useState<NFLPlayer | null>(null);
   const [currentBid, setCurrentBid] = useState<DraftBid | null>(null);
   const [bidAmount, setBidAmount] = useState(1);
   const [bidIncrement] = useState(1);
   const [bidHistory, setBidHistory] = useState<BidHistoryItem[]>([]);
+  const [teams, setTeams] = useState<Team[]>([]);
+  const [activeUserIds, setActiveUserIds] = useState<Set<string>>(new Set());
 
   const socket = usePartySocket({
     host: process.env.NEXT_PUBLIC_PARTYKIT_HOST!,
@@ -98,15 +118,26 @@ export default function DraftRoomPage() {
               console.log("Received initial state:", data.state);
               setSelectedPlayer(data.state.selectedPlayer);
               setCurrentBid(data.state.currentBid);
-              setBidAmount(data.state.currentBid.amount + 1);
-              // Sort users by join time
-              const sortedUsers = [...data.state.users].sort(
-                (a, b) => a.joinedAt - b.joinedAt,
+              setBidAmount(
+                data.state.currentBid ? data.state.currentBid.amount + 1 : 1,
               );
-              setActiveUsers(sortedUsers);
+
+              // Always set users if they exist
+              if (data.state.users) {
+                const sortedUsers = [...data.state.users].sort(
+                  (a, b) => a.joinedAt - b.joinedAt,
+                );
+                setActiveUsers(sortedUsers);
+              }
+
+              // Fix type safety in bid history
+              const newBid: BidHistoryItem = {
+                ...data.state.currentBid,
+                isHighestBid: true,
+              };
               setBidHistory((prev) =>
                 [
-                  { ...data.state.currentBid, isHighestBid: true },
+                  newBid,
                   ...prev.map((bid) => ({ ...bid, isHighestBid: false })),
                 ].slice(0, 10),
               );
@@ -127,24 +158,36 @@ export default function DraftRoomPage() {
               console.log("Received new bid:", data.bid);
               setCurrentBid(data.bid);
               setBidAmount(data.bid.amount + 1);
+
+              // Ensure bid has all required fields
+              const newBid: BidHistoryItem = {
+                userId: data.bid.userId,
+                userName: data.bid.userName,
+                amount: data.bid.amount,
+                timestamp: data.bid.timestamp,
+                isHighestBid: true,
+              };
+
               setBidHistory((prev) =>
                 [
-                  { ...data.bid, isHighestBid: true },
+                  newBid,
                   ...prev.map((bid) => ({ ...bid, isHighestBid: false })),
                 ].slice(0, 10),
               );
             }
             break;
           case "user_joined":
-            if (data.user && data.user.id !== user?.id) {
-              setActiveUsers((prev) => [...prev, data.user!]);
+            if (data.user) {
+              setActiveUserIds((prev) => new Set(prev).add(data.user!.id));
             }
             break;
           case "user_left":
             if (data.userId) {
-              setActiveUsers((prev) =>
-                prev.filter((u) => u.id !== data.userId),
-              );
+              setActiveUserIds((prev) => {
+                const newSet = new Set(prev);
+                newSet.delete(data.userId!);
+                return newSet;
+              });
             }
             break;
         }
@@ -156,12 +199,25 @@ export default function DraftRoomPage() {
 
   // Fetch NFL Players
   useEffect(() => {
-    const fetchPlayers = async () => {
-      const res = await fetch("/api/nfl-players");
-      const data = (await res.json()) as NFLPlayer[];
-      setNflPlayers(data);
-    };
     void fetchPlayers();
+  }, [fetchPlayers]);
+
+  // Fetch teams on mount
+  useEffect(() => {
+    const fetchTeams = async () => {
+      const res = await fetch("/api/teams");
+      const data = (await res.json()) as TeamResponse[];
+      setTeams(
+        data.map((team) => ({
+          id: team.id,
+          name: team.name,
+          ownerName: team.ownerName,
+          ownerId: team.ownerId,
+          draftOrder: team.draftOrder,
+        })),
+      );
+    };
+    void fetchTeams();
   }, []);
 
   const joinDraftRoom = () => {
@@ -199,7 +255,7 @@ export default function DraftRoomPage() {
 
   const handlePlayerSelect = (playerId: number) => {
     const player = nflPlayers.find((p) => p.id === playerId);
-    if (player) {
+    if (player && user) {
       setSelectedPlayer(player);
       setCurrentBid(null);
       setBidAmount(1);
@@ -273,25 +329,11 @@ export default function DraftRoomPage() {
             <p className="mt-4 text-green-600">Connected to draft room</p>
           )}
 
-          {/* Player Selection */}
-          <div className="mb-6">
-            <label className="block text-sm font-medium text-gray-700">
-              Select Player
-            </label>
-            <select
-              className="mt-1 block w-full rounded-md border p-2"
-              onChange={(e) => handlePlayerSelect(Number(e.target.value))}
-              value={selectedPlayer?.id ?? ""}
-            >
-              <option value="">Select a player</option>
-              {nflPlayers.map((player) => (
-                <option key={player.id} value={player.id}>
-                  {player.firstName} {player.lastName} - {player.position} -{" "}
-                  {player.nflTeamName}
-                </option>
-              ))}
-            </select>
-          </div>
+          {/* Replace the old dropdown with the new component */}
+          <NFLPlayerSelect
+            selectedPlayerId={selectedPlayer?.id}
+            onPlayerSelect={handlePlayerSelect}
+          />
 
           {/* Selected Player and Current Bid */}
           {selectedPlayer && (
@@ -351,10 +393,10 @@ export default function DraftRoomPage() {
                       ? "cursor-not-allowed bg-gray-400"
                       : "bg-blue-500 hover:bg-blue-600"
                   }`}
-                  disabled={
+                  disabled={Boolean(
                     !selectedPlayer ||
-                    (currentBid && bidAmount <= currentBid.amount)
-                  }
+                      (currentBid && bidAmount <= currentBid.amount),
+                  )}
                 >
                   {!selectedPlayer
                     ? "Select a Player"
@@ -394,22 +436,27 @@ export default function DraftRoomPage() {
 
         {/* Active users sidebar */}
         <div className="col-span-3 rounded-lg border p-4">
-          <h2 className="mb-4 text-lg font-semibold">Active Users</h2>
+          <h2 className="mb-4 text-lg font-semibold">Teams</h2>
           <div className="space-y-2">
-            {activeUsers.map((draftUser) => (
+            {teams.map((team) => (
               <div
-                key={draftUser.id}
+                key={team.id}
                 className="flex items-center justify-between rounded-lg border p-2"
               >
                 <div className="flex items-center gap-2">
                   <div
                     className={`h-2 w-2 rounded-full ${
-                      draftUser.isActive ? "bg-green-500" : "bg-gray-300"
+                      activeUserIds.has(team.ownerId)
+                        ? "bg-green-500"
+                        : "bg-gray-300"
                     }`}
                   />
-                  <span className="font-medium">{draftUser.name}</span>
+                  <div>
+                    <span className="font-medium">{team.name}</span>
+                    <p className="text-xs text-gray-600">{team.ownerName}</p>
+                  </div>
                 </div>
-                {draftUser.id === user?.id && (
+                {team.ownerId === user?.id && (
                   <span className="text-xs text-gray-500">(You)</span>
                 )}
               </div>
