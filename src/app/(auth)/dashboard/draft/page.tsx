@@ -7,6 +7,7 @@ import Container from "~/components/Container";
 import { usePartySocket } from "partysocket/react";
 import { useNFLPlayersStore } from "~/store/nfl-players";
 import NFLPlayerSelect from "./components/NFLPlayerSelect";
+import Countdown from "./components/Countdown";
 
 interface NFLPlayer {
   id: number;
@@ -94,6 +95,7 @@ export default function DraftRoomPage() {
   const [bidHistory, setBidHistory] = useState<BidHistoryItem[]>([]);
   const [teams, setTeams] = useState<Team[]>([]);
   const [activeUserIds, setActiveUserIds] = useState<Set<string>>(new Set());
+  const [showCountdown, setShowCountdown] = useState(false);
 
   const socket = usePartySocket({
     host: process.env.NEXT_PUBLIC_PARTYKIT_HOST!,
@@ -271,6 +273,9 @@ export default function DraftRoomPage() {
   const handleBidSubmit = () => {
     if (!user || !selectedPlayer) return;
 
+    // Cancel any active countdown
+    setShowCountdown(false);
+
     const newBid: DraftBid = {
       userId: user.id,
       userName: `${user.firstName} ${user.lastName}`,
@@ -301,6 +306,10 @@ export default function DraftRoomPage() {
   const adjustBidAmount = (amount: number) => {
     const minBid = currentBid ? currentBid.amount + 1 : 1;
     setBidAmount(Math.max(minBid, bidAmount + amount));
+  };
+
+  const handleNewBid = () => {
+    setShowCountdown(false);
   };
 
   return (
@@ -348,7 +357,7 @@ export default function DraftRoomPage() {
                   </p>
                 </div>
 
-                {currentBid && (
+                {currentBid ? (
                   <div className="rounded-lg border-2 border-green-500 bg-green-100 p-4">
                     <div className="text-sm font-medium text-green-800">
                       Current Leader
@@ -360,6 +369,59 @@ export default function DraftRoomPage() {
                       by {currentBid.userName}
                     </div>
                   </div>
+                ) : (
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => {
+                        if (!user) return;
+                        // Create initial bid
+                        const initialBid: DraftBid = {
+                          userId: user.id,
+                          userName: `${user.firstName} ${user.lastName}`,
+                          amount: 1,
+                          timestamp: Date.now(),
+                        };
+
+                        // Update local state
+                        setCurrentBid(initialBid);
+                        setBidAmount(2); // Set next bid to $2
+                        setBidHistory((prev) =>
+                          [
+                            { ...initialBid, isHighestBid: true },
+                            ...prev.map((bid) => ({
+                              ...bid,
+                              isHighestBid: false,
+                            })),
+                          ].slice(0, 10),
+                        );
+
+                        // Send to server
+                        socket.send(
+                          JSON.stringify({
+                            type: "new_bid",
+                            bid: initialBid,
+                          }),
+                        );
+                      }}
+                      className="rounded bg-green-500 px-4 py-2 text-white hover:bg-green-600"
+                    >
+                      Confirm Selection ($1)
+                    </button>
+                    <button
+                      onClick={() => {
+                        setSelectedPlayer(null);
+                        socket.send(
+                          JSON.stringify({
+                            type: "select_player",
+                            player: null,
+                          }),
+                        );
+                      }}
+                      className="rounded bg-gray-500 px-4 py-2 text-white hover:bg-gray-600"
+                    >
+                      Cancel Selection
+                    </button>
+                  </div>
                 )}
               </div>
             </div>
@@ -368,42 +430,41 @@ export default function DraftRoomPage() {
           {/* Simplified Bidding Controls */}
           {selectedPlayer && (
             <div className="space-y-4">
-              <div className="flex items-center gap-4">
-                <label className="text-sm font-medium text-gray-700">
-                  Bid Amount:
-                </label>
-                <button
-                  onClick={() => adjustBidAmount(-bidIncrement)}
-                  className="rounded bg-gray-200 px-3 py-1"
-                >
-                  -
-                </button>
-                <span className="min-w-[3ch] text-center">${bidAmount}</span>
-                <button
-                  onClick={() => adjustBidAmount(bidIncrement)}
-                  className="rounded bg-gray-200 px-3 py-1"
-                >
-                  +
-                </button>
-                <button
-                  onClick={handleBidSubmit}
-                  className={`rounded px-4 py-2 text-white ${
-                    !selectedPlayer ||
-                    (currentBid && bidAmount <= currentBid.amount)
-                      ? "cursor-not-allowed bg-gray-400"
-                      : "bg-blue-500 hover:bg-blue-600"
-                  }`}
-                  disabled={Boolean(
-                    !selectedPlayer ||
-                      (currentBid && bidAmount <= currentBid.amount),
-                  )}
-                >
-                  {!selectedPlayer
-                    ? "Select a Player"
-                    : currentBid && bidAmount <= currentBid.amount
-                      ? `Bid must be > $${currentBid.amount}`
-                      : "Place Bid"}
-                </button>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                  <label className="text-sm font-medium text-gray-700">
+                    Bid Amount:
+                  </label>
+                  <button
+                    onClick={() => adjustBidAmount(-bidIncrement)}
+                    className="rounded bg-gray-200 px-3 py-1"
+                  >
+                    -
+                  </button>
+                  <span className="min-w-[3ch] text-center">${bidAmount}</span>
+                  <button
+                    onClick={() => adjustBidAmount(bidIncrement)}
+                    className="rounded bg-gray-200 px-3 py-1"
+                  >
+                    +
+                  </button>
+                  <button
+                    onClick={handleBidSubmit}
+                    className="rounded bg-blue-500 px-4 py-2 text-white hover:bg-blue-600"
+                  >
+                    Place Bid
+                  </button>
+                </div>
+
+                {currentBid && (
+                  <button
+                    onClick={() => setShowCountdown(true)}
+                    className="rounded bg-yellow-500 px-4 py-2 text-white hover:bg-yellow-600"
+                    disabled={showCountdown}
+                  >
+                    Trigger Countdown
+                  </button>
+                )}
               </div>
 
               {/* Bid History */}
@@ -432,35 +493,59 @@ export default function DraftRoomPage() {
               </div>
             </div>
           )}
+
+          {/* Countdown overlay */}
+          {showCountdown && (
+            <Countdown
+              onComplete={() => {
+                setShowCountdown(false);
+                // Handle auction completion here
+                console.log("Auction complete!");
+              }}
+              onCancel={() => setShowCountdown(false)}
+            />
+          )}
         </div>
 
-        {/* Active users sidebar */}
+        {/* Teams sidebar */}
         <div className="col-span-3 rounded-lg border p-4">
           <h2 className="mb-4 text-lg font-semibold">Teams</h2>
           <div className="space-y-2">
-            {teams.map((team) => (
-              <div
-                key={team.id}
-                className="flex items-center justify-between rounded-lg border p-2"
-              >
-                <div className="flex items-center gap-2">
-                  <div
-                    className={`h-2 w-2 rounded-full ${
-                      activeUserIds.has(team.ownerId)
-                        ? "bg-green-500"
-                        : "bg-gray-300"
-                    }`}
-                  />
-                  <div>
-                    <span className="font-medium">{team.name}</span>
-                    <p className="text-xs text-gray-600">{team.ownerName}</p>
+            {[...teams]
+              .sort(
+                (a, b) =>
+                  (a.draftOrder ?? Infinity) - (b.draftOrder ?? Infinity),
+              )
+              .map((team) => (
+                <div
+                  key={team.id}
+                  className="flex items-center justify-between rounded-lg border p-2"
+                >
+                  <div className="flex items-center gap-2">
+                    <div
+                      className={`h-2 w-2 rounded-full ${
+                        activeUserIds.has(team.ownerId)
+                          ? "bg-green-500"
+                          : "bg-gray-300"
+                      }`}
+                    />
+                    <div>
+                      <div className="flex items-center gap-2">
+                        {team.draftOrder && (
+                          <span className="text-sm font-semibold text-blue-600">
+                            #{team.draftOrder}
+                          </span>
+                        )}
+                        <span className="font-medium">{team.name}</span>
+                      </div>
+                      <p className="text-xs text-gray-600">{team.ownerName}</p>
+                    </div>
                   </div>
+                  {team.ownerId === user?.id && (
+                    <span className="text-xs text-gray-500">(You)</span>
+                  )}
                 </div>
-                {team.ownerId === user?.id && (
-                  <span className="text-xs text-gray-500">(You)</span>
-                )}
-              </div>
-            ))}
+              ))}
           </div>
         </div>
       </div>
