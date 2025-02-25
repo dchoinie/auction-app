@@ -18,6 +18,7 @@ interface NFLPlayersStore {
   hasFetched: boolean;
   fetchPlayers: () => Promise<void>;
   updatePlayer: (playerId: number, updates: Partial<NFLPlayer>) => void;
+  invalidateCache: () => void;
 }
 
 export const useNFLPlayersStore = create<NFLPlayersStore>()(
@@ -28,18 +29,15 @@ export const useNFLPlayersStore = create<NFLPlayersStore>()(
       error: null,
       hasFetched: false,
       fetchPlayers: async () => {
-        // Only fetch if we haven't already
-        if (!useNFLPlayersStore.getState().hasFetched) {
-          set({ isLoading: true, error: null });
-          try {
-            const res = await fetch("/api/nfl-players");
-            if (!res.ok) throw new Error("Failed to fetch players");
-            const data = await res.json();
-            set({ players: data, isLoading: false, hasFetched: true });
-          } catch (error) {
-            set({ error: "Failed to fetch players", isLoading: false });
-            throw error;
-          }
+        set({ isLoading: true, error: null });
+        try {
+          const res = await fetch("/api/nfl-players");
+          if (!res.ok) throw new Error("Failed to fetch players");
+          const data = await res.json();
+          set({ players: data, isLoading: false, hasFetched: true });
+        } catch (error) {
+          set({ error: "Failed to fetch players", isLoading: false });
+          throw error;
         }
       },
       updatePlayer: (playerId, updates) =>
@@ -48,6 +46,7 @@ export const useNFLPlayersStore = create<NFLPlayersStore>()(
             player.id === playerId ? { ...player, ...updates } : player,
           ),
         })),
+      invalidateCache: () => set({ hasFetched: false }),
     }),
     {
       name: "nfl-players-storage",

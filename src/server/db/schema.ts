@@ -12,6 +12,7 @@ import {
   pgEnum,
   integer,
 } from "drizzle-orm/pg-core";
+import { relations } from "drizzle-orm";
 
 /**
  * This is an example of how to use the multi-project schema feature of Drizzle ORM. Use the same
@@ -99,3 +100,62 @@ export const rosters = createTable(
     teamIdIdx: index("team_id_idx").on(table.teamId),
   }),
 );
+
+export const rostersRelations = relations(rosters, ({ one }) => ({
+  qbPlayer: one(nflPlayers, {
+    fields: [rosters.QB],
+    references: [nflPlayers.id],
+  }),
+  rb1Player: one(nflPlayers, {
+    fields: [rosters.RB1],
+    references: [nflPlayers.id],
+  }),
+  rb2Player: one(nflPlayers, {
+    fields: [rosters.RB2],
+    references: [nflPlayers.id],
+  }),
+  wr1Player: one(nflPlayers, {
+    fields: [rosters.WR1],
+    references: [nflPlayers.id],
+  }),
+  wr2Player: one(nflPlayers, {
+    fields: [rosters.WR2],
+    references: [nflPlayers.id],
+  }),
+  tePlayer: one(nflPlayers, {
+    fields: [rosters.TE],
+    references: [nflPlayers.id],
+  }),
+  flex1Player: one(nflPlayers, {
+    fields: [rosters.Flex1],
+    references: [nflPlayers.id],
+  }),
+  flex2Player: one(nflPlayers, {
+    fields: [rosters.Flex2],
+    references: [nflPlayers.id],
+  }),
+  bench1Player: one(nflPlayers, {
+    fields: [rosters.Bench1],
+    references: [nflPlayers.id],
+  }),
+  bench2Player: one(nflPlayers, {
+    fields: [rosters.Bench2],
+    references: [nflPlayers.id],
+  }),
+  bench3Player: one(nflPlayers, {
+    fields: [rosters.Bench3],
+    references: [nflPlayers.id],
+  }),
+  bench4Player: one(nflPlayers, {
+    fields: [rosters.Bench4],
+    references: [nflPlayers.id],
+  }),
+  bench5Player: one(nflPlayers, {
+    fields: [rosters.Bench5],
+    references: [nflPlayers.id],
+  }),
+  bench6Player: one(nflPlayers, {
+    fields: [rosters.Bench6],
+    references: [nflPlayers.id],
+  }),
+}));

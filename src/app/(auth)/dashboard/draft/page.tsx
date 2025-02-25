@@ -8,6 +8,7 @@ import { usePartySocket } from "partysocket/react";
 import { useNFLPlayersStore } from "~/store/nfl-players";
 import NFLPlayerSelect from "./components/NFLPlayerSelect";
 import Countdown from "./components/Countdown";
+import RosterModal from "./components/RosterModal";
 
 interface NFLPlayer {
   id: number;
@@ -88,7 +89,8 @@ export default function DraftRoomPage() {
   const { user } = useUser();
   const [activeUsers, setActiveUsers] = useState<DraftUser[]>([]);
   const [isConnected, setIsConnected] = useState(false);
-  const { players, fetchPlayers, updatePlayer } = useNFLPlayersStore();
+  const { players, fetchPlayers, updatePlayer, invalidateCache } =
+    useNFLPlayersStore();
   const [selectedPlayer, setSelectedPlayer] = useState<NFLPlayer | null>(null);
   const [currentBid, setCurrentBid] = useState<DraftBid | null>(null);
   const [bidAmount, setBidAmount] = useState(1);
@@ -97,6 +99,7 @@ export default function DraftRoomPage() {
   const [teams, setTeams] = useState<Team[]>([]);
   const [activeUserIds, setActiveUserIds] = useState<Set<string>>(new Set());
   const [showCountdown, setShowCountdown] = useState(false);
+  const [selectedTeam, setSelectedTeam] = useState<Team | null>(null);
 
   const socket = usePartySocket({
     host: process.env.NEXT_PUBLIC_PARTYKIT_HOST!,
@@ -200,10 +203,11 @@ export default function DraftRoomPage() {
     },
   });
 
-  // Fetch NFL Players
+  // Force a fresh fetch when the component mounts
   useEffect(() => {
-    void fetchPlayers();
-  }, [fetchPlayers]);
+    invalidateCache(); // Clear the cache
+    void fetchPlayers(); // Fetch fresh data
+  }, [fetchPlayers, invalidateCache]);
 
   // Fetch teams on mount
   useEffect(() => {
@@ -617,14 +621,32 @@ export default function DraftRoomPage() {
                       <p className="text-xs text-gray-600">{team.ownerName}</p>
                     </div>
                   </div>
-                  {team.ownerId === user?.id && (
-                    <span className="text-xs text-gray-500">(You)</span>
-                  )}
+                  <div className="flex items-center gap-2">
+                    {team.ownerId === user?.id && (
+                      <span className="text-xs text-gray-500">(You)</span>
+                    )}
+                    <button
+                      onClick={() => setSelectedTeam(team)}
+                      className="text-sm text-blue-600 hover:text-blue-800"
+                    >
+                      View Team
+                    </button>
+                  </div>
                 </div>
               ))}
           </div>
         </div>
       </div>
+
+      {/* Roster Modal */}
+      {selectedTeam && (
+        <RosterModal
+          isOpen={Boolean(selectedTeam)}
+          onClose={() => setSelectedTeam(null)}
+          teamId={selectedTeam.id}
+          teamName={selectedTeam.name}
+        />
+      )}
     </Container>
   );
 }
