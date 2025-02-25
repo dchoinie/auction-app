@@ -1,23 +1,33 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState, memo } from "react";
 
 interface CountdownProps {
   onComplete: () => void;
   onCancel: () => void;
 }
 
-export default function Countdown({ onComplete, onCancel }: CountdownProps) {
+const Countdown = memo(function Countdown({
+  onComplete,
+  onCancel,
+}: CountdownProps) {
   const [stage, setStage] = useState<"first" | "second" | "sold">("first");
+  const timeoutsRef = useRef<NodeJS.Timeout[]>([]);
+  const hasSpokenRef = useRef<Set<string>>(new Set());
 
   const speak = (text: string) => {
+    if (hasSpokenRef.current.has(text)) return;
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.rate = 0.9;
     utterance.pitch = 0.9;
     window.speechSynthesis.speak(utterance);
+    hasSpokenRef.current.add(text);
   };
 
   useEffect(() => {
+    // Reset spoken phrases on mount
+    hasSpokenRef.current = new Set();
+
     const firstTimeout = setTimeout(() => {
       speak("Going once");
       setStage("first");
@@ -32,15 +42,19 @@ export default function Countdown({ onComplete, onCancel }: CountdownProps) {
           setTimeout(onComplete, 800);
         }, 3000);
 
-        return () => clearTimeout(soldTimeout);
+        timeoutsRef.current.push(soldTimeout);
       }, 3000);
 
-      return () => clearTimeout(secondTimeout);
+      timeoutsRef.current.push(secondTimeout);
     }, 0);
 
+    timeoutsRef.current.push(firstTimeout);
+
     return () => {
-      clearTimeout(firstTimeout);
+      timeoutsRef.current.forEach(clearTimeout);
+      timeoutsRef.current = [];
       window.speechSynthesis.cancel();
+      hasSpokenRef.current.clear();
     };
   }, [onComplete]);
 
@@ -55,4 +69,6 @@ export default function Countdown({ onComplete, onCancel }: CountdownProps) {
       </div>
     </div>
   );
-}
+});
+
+export default Countdown;

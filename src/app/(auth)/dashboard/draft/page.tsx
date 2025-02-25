@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useUser } from "@clerk/nextjs";
 import { useRouter } from "next/navigation";
 import Container from "~/components/Container";
@@ -308,9 +308,15 @@ export default function DraftRoomPage() {
     setBidAmount(Math.max(minBid, bidAmount + amount));
   };
 
-  const handleNewBid = () => {
+  const handleCountdownComplete = useCallback(() => {
     setShowCountdown(false);
-  };
+    // Handle auction completion here
+    console.log("Auction complete!");
+  }, []);
+
+  const handleCountdownCancel = useCallback(() => {
+    setShowCountdown(false);
+  }, []);
 
   return (
     <Container>
@@ -450,9 +456,22 @@ export default function DraftRoomPage() {
                   </button>
                   <button
                     onClick={handleBidSubmit}
-                    className="rounded bg-blue-500 px-4 py-2 text-white hover:bg-blue-600"
+                    disabled={Boolean(
+                      !selectedPlayer ||
+                        (currentBid && bidAmount <= currentBid.amount),
+                    )}
+                    className={`rounded px-4 py-2 text-white ${
+                      !selectedPlayer ||
+                      (currentBid && bidAmount <= currentBid.amount)
+                        ? "cursor-not-allowed bg-gray-400"
+                        : "bg-blue-500 hover:bg-blue-600"
+                    }`}
                   >
-                    Place Bid
+                    {!selectedPlayer
+                      ? "Select a Player"
+                      : currentBid && bidAmount <= currentBid.amount
+                        ? `Bid must be > $${currentBid.amount}`
+                        : "Place Bid"}
                   </button>
                 </div>
 
@@ -497,12 +516,8 @@ export default function DraftRoomPage() {
           {/* Countdown overlay */}
           {showCountdown && (
             <Countdown
-              onComplete={() => {
-                setShowCountdown(false);
-                // Handle auction completion here
-                console.log("Auction complete!");
-              }}
-              onCancel={() => setShowCountdown(false)}
+              onComplete={handleCountdownComplete}
+              onCancel={handleCountdownCancel}
             />
           )}
         </div>
