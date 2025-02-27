@@ -43,9 +43,9 @@ export default function TeamDetailsPage() {
     }
   }, [teamId]);
 
-  if (!team) return <div>Team not found</div>;
-  if (isLoading) return <div>Loading roster...</div>;
-  if (error) return <div>Error: {error}</div>;
+  if (!team) return <Container>Team not found</Container>;
+  if (isLoading) return <Container>Loading roster...</Container>;
+  if (error) return <Container>Error: {error}</Container>;
 
   return (
     <Container>

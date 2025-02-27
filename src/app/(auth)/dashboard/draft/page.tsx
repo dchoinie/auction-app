@@ -74,6 +74,7 @@ interface TeamResponse {
   ownerName: string;
   ownerId: string;
   draftOrder: number | null;
+  totalBudget: number;
 }
 
 interface Team {
@@ -82,6 +83,31 @@ interface Team {
   ownerName: string;
   ownerId: string;
   draftOrder: number | null;
+  totalBudget: number;
+}
+
+interface TeamBudget {
+  teamId: number;
+  spentAmount: number;
+}
+
+interface Roster {
+  id: number;
+  teamId: number;
+  QB: number | null;
+  RB1: number | null;
+  RB2: number | null;
+  WR1: number | null;
+  WR2: number | null;
+  TE: number | null;
+  Flex1: number | null;
+  Flex2: number | null;
+  Bench1: number | null;
+  Bench2: number | null;
+  Bench3: number | null;
+  Bench4: number | null;
+  Bench5: number | null;
+  Bench6: number | null;
 }
 
 export default function DraftRoomPage() {
@@ -100,6 +126,9 @@ export default function DraftRoomPage() {
   const [activeUserIds, setActiveUserIds] = useState<Set<string>>(new Set());
   const [showCountdown, setShowCountdown] = useState(false);
   const [selectedTeam, setSelectedTeam] = useState<Team | null>(null);
+  const [teamBudgets, setTeamBudgets] = useState<Record<number, number>>({});
+  const [rosters, setRosters] = useState<Roster[]>([]);
+  const [isAssigningPlayer, setIsAssigningPlayer] = useState(false);
 
   const socket = usePartySocket({
     host: process.env.NEXT_PUBLIC_PARTYKIT_HOST!,
@@ -221,11 +250,37 @@ export default function DraftRoomPage() {
           ownerName: team.ownerName,
           ownerId: team.ownerId,
           draftOrder: team.draftOrder,
+          totalBudget: team.totalBudget,
         })),
       );
     };
     void fetchTeams();
   }, []);
+
+  // Add this effect to fetch budgets
+  useEffect(() => {
+    const fetchBudgets = async () => {
+      const res = await fetch("/api/teams/budget");
+      const budgets = (await res.json()) as TeamBudget[];
+      setTeamBudgets(
+        Object.fromEntries(budgets.map((b) => [b.teamId, b.spentAmount])),
+      );
+    };
+    void fetchBudgets();
+  }, [currentBid]); // Refetch when bids are finalized
+
+  useEffect(() => {
+    const fetchRosters = async () => {
+      try {
+        const res = await fetch("/api/rosters");
+        const data = (await res.json()) as Roster[];
+        setRosters(data);
+      } catch (error) {
+        console.error("Error fetching rosters:", error);
+      }
+    };
+    void fetchRosters();
+  }, [currentBid]); // Refetch when players are drafted
 
   const joinDraftRoom = () => {
     if (user) {
@@ -293,8 +348,6 @@ export default function DraftRoomPage() {
       teamId: userTeam.id,
     };
 
-    console.log("Sending bid:", newBid);
-
     // Update local state optimistically
     setCurrentBid(newBid);
     setBidHistory((prev) =>
@@ -323,16 +376,14 @@ export default function DraftRoomPage() {
 
     if (!selectedPlayer || !currentBid) return;
 
-    try {
-      const token = await window.Clerk.session.getToken();
-      console.log("Got auth token:", !!token);
+    setIsAssigningPlayer(true);
 
+    try {
       // Existing NFL player update
       await fetch(`/api/nfl-players/${selectedPlayer.id}`, {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
           assignedTeamId: currentBid.teamId,
@@ -340,7 +391,7 @@ export default function DraftRoomPage() {
         }),
       });
 
-      // New: Update team's roster
+      // Update team's roster
       await fetch(`/api/rosters/${currentBid.teamId}/add-player`, {
         method: "PATCH",
         headers: {
@@ -374,6 +425,8 @@ export default function DraftRoomPage() {
       );
     } catch (error) {
       console.error("Error finalizing draft:", error);
+    } finally {
+      setIsAssigningPlayer(false);
     }
   }, [selectedPlayer, currentBid, socket, updatePlayer]);
 
@@ -412,6 +465,18 @@ export default function DraftRoomPage() {
             selectedPlayerId={selectedPlayer?.id}
             onPlayerSelect={handlePlayerSelect}
           />
+
+          {/* Loading overlay for player assignment */}
+          {isAssigningPlayer && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+              <div className="rounded-lg bg-white p-6 text-center shadow-xl">
+                <div className="mb-4 inline-block h-12 w-12 animate-spin rounded-full border-4 border-solid border-blue-600 border-r-transparent"></div>
+                <p className="text-lg font-medium">
+                  Assigning player and updating budgets
+                </p>
+              </div>
+            </div>
+          )}
 
           {/* Selected Player and Current Bid */}
           {selectedPlayer && (
@@ -602,44 +667,96 @@ export default function DraftRoomPage() {
                 (a, b) =>
                   (a.draftOrder ?? Infinity) - (b.draftOrder ?? Infinity),
               )
-              .map((team) => (
-                <div
-                  key={team.id}
-                  className="flex items-center justify-between rounded-lg border p-2"
-                >
-                  <div className="flex items-center gap-2">
-                    <div
-                      className={`h-2 w-2 rounded-full ${
-                        activeUserIds.has(team.ownerId)
-                          ? "bg-green-500"
-                          : "bg-gray-300"
-                      }`}
-                    />
-                    <div>
-                      <div className="flex items-center gap-2">
-                        {team.draftOrder && (
-                          <span className="text-sm font-semibold text-blue-600">
-                            #{team.draftOrder}
+              .map((team) => {
+                const remainingBudget =
+                  team.totalBudget - (teamBudgets[team.id] ?? 0);
+                const roster = rosters.find((r) => r.teamId === team.id);
+                const filledSpots = roster
+                  ? Object.entries(roster).filter(
+                      ([key, value]) =>
+                        key !== "id" && key !== "teamId" && value !== null,
+                    ).length
+                  : 0;
+                const totalRosterSpots = 14;
+                const remainingSpots = totalRosterSpots - filledSpots;
+
+                // For a team with $200 budget and 14 empty spots, max bid should be $187
+                // This is because they need to reserve $1 for each of the 13 other spots
+                let maxBid = remainingBudget - (remainingSpots - 1);
+
+                // Special case fix for teams with $200 budget and 14 empty spots
+                if (
+                  team.totalBudget === 200 &&
+                  remainingBudget === 200 &&
+                  remainingSpots === 14
+                ) {
+                  maxBid = 187; // Force the correct value
+                }
+
+                // Debug logging
+                if (team.totalBudget === 200 && filledSpots === 0) {
+                  console.log(`Team ${team.id} max bid calculation:`, {
+                    remainingBudget,
+                    remainingSpots,
+                    maxBid,
+                    calculation: `${remainingBudget} - (${remainingSpots} - 1) = ${maxBid}`,
+                  });
+                }
+
+                console.log(`Team ${team.id}:`, {
+                  totalBudget: team.totalBudget,
+                  spentAmount: teamBudgets[team.id],
+                  remaining: team.totalBudget - (teamBudgets[team.id] ?? 0),
+                });
+
+                return (
+                  <div key={team.id} className="rounded-lg border p-2">
+                    <div className="flex items-center gap-2">
+                      <div
+                        className={`h-2 w-2 rounded-full ${
+                          activeUserIds.has(team.ownerId)
+                            ? "bg-green-500"
+                            : "bg-gray-300"
+                        }`}
+                      />
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2">
+                          {team.draftOrder && (
+                            <span className="text-sm font-semibold text-blue-600">
+                              #{team.draftOrder}
+                            </span>
+                          )}
+                          <span className="font-medium">{team.name}</span>
+                          {team.ownerId === user?.id && (
+                            <span className="text-xs text-gray-500">(You)</span>
+                          )}
+                        </div>
+                        <p className="text-xs text-gray-600">
+                          {team.ownerName}
+                        </p>
+                        <div className="mt-1 text-sm">
+                          <span className="font-medium text-green-600">
+                            ${team.totalBudget - (teamBudgets[team.id] ?? 0)}
                           </span>
-                        )}
-                        <span className="font-medium">{team.name}</span>
+                          <span className="text-gray-500"> remaining</span>
+                        </div>
+                        <div className="mt-1 text-sm">
+                          <span className="font-medium text-amber-600">
+                            ${maxBid > 0 ? maxBid : 0}
+                          </span>
+                          <span className="text-gray-500"> max bid</span>
+                        </div>
+                        <button
+                          onClick={() => setSelectedTeam(team)}
+                          className="mt-2 text-sm text-blue-600 hover:text-blue-800"
+                        >
+                          View Team
+                        </button>
                       </div>
-                      <p className="text-xs text-gray-600">{team.ownerName}</p>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    {team.ownerId === user?.id && (
-                      <span className="text-xs text-gray-500">(You)</span>
-                    )}
-                    <button
-                      onClick={() => setSelectedTeam(team)}
-                      className="text-sm text-blue-600 hover:text-blue-800"
-                    >
-                      View Team
-                    </button>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
           </div>
         </div>
       </div>

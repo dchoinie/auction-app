@@ -9,34 +9,28 @@ export interface TeamResponse {
   ownerName: string;
   ownerId: string;
   draftOrder: number | null;
+  totalBudget: number;
 }
 
 // GET /api/teams - fetch all teams
 export async function GET() {
   try {
-    const { userId } = await auth();
-    if (!userId) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    const allTeams = await db.query.teams.findMany({
-      orderBy: (teams, { asc }) => [asc(teams.draftOrder)],
-      columns: {
-        id: true,
-        name: true,
-        ownerName: true,
-        ownerId: true,
-        draftOrder: true,
-      },
-    });
+    const allTeams = await db
+      .select({
+        id: teams.id,
+        name: teams.name,
+        ownerName: teams.ownerName,
+        ownerId: teams.ownerId,
+        draftOrder: teams.draftOrder,
+        totalBudget: teams.totalBudget,
+        createdAt: teams.createdAt,
+      })
+      .from(teams);
 
     return NextResponse.json(allTeams);
   } catch (error) {
     console.error("Error fetching teams:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch teams" },
-      { status: 500 },
-    );
+    return new NextResponse("Internal Server Error", { status: 500 });
   }
 }
 
