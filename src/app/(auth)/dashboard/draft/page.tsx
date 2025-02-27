@@ -129,6 +129,7 @@ export default function DraftRoomPage() {
   const [teamBudgets, setTeamBudgets] = useState<Record<number, number>>({});
   const [rosters, setRosters] = useState<Roster[]>([]);
   const [isAssigningPlayer, setIsAssigningPlayer] = useState(false);
+  const [isSelling, setIsSelling] = useState(false);
 
   const socket = usePartySocket({
     host: process.env.NEXT_PUBLIC_PARTYKIT_HOST!,
@@ -372,9 +373,15 @@ export default function DraftRoomPage() {
   };
 
   const handleCountdownComplete = useCallback(async () => {
+    // Set isSelling first to prevent any new bids
+    setIsSelling(true);
+    // Then remove the countdown display
     setShowCountdown(false);
 
-    if (!selectedPlayer || !currentBid) return;
+    if (!selectedPlayer || !currentBid) {
+      setIsSelling(false);
+      return;
+    }
 
     setIsAssigningPlayer(true);
 
@@ -427,11 +434,13 @@ export default function DraftRoomPage() {
       console.error("Error finalizing draft:", error);
     } finally {
       setIsAssigningPlayer(false);
+      setIsSelling(false);
     }
   }, [selectedPlayer, currentBid, socket, updatePlayer]);
 
   const handleCountdownCancel = useCallback(() => {
     setShowCountdown(false);
+    setIsSelling(false);
   }, []);
 
   return (
@@ -594,20 +603,24 @@ export default function DraftRoomPage() {
                     onClick={handleBidSubmit}
                     disabled={Boolean(
                       !selectedPlayer ||
-                        (currentBid && bidAmount <= currentBid.amount),
+                        (currentBid && bidAmount <= currentBid.amount) ||
+                        isSelling,
                     )}
                     className={`rounded px-4 py-2 text-white ${
                       !selectedPlayer ||
-                      (currentBid && bidAmount <= currentBid.amount)
+                      (currentBid && bidAmount <= currentBid.amount) ||
+                      isSelling
                         ? "cursor-not-allowed bg-gray-400"
                         : "bg-blue-500 hover:bg-blue-600"
                     }`}
                   >
                     {!selectedPlayer
                       ? "Select a Player"
-                      : currentBid && bidAmount <= currentBid.amount
-                        ? `Bid must be > $${currentBid.amount}`
-                        : "Place Bid"}
+                      : isSelling
+                        ? "Bidding Closed"
+                        : currentBid && bidAmount <= currentBid.amount
+                          ? `Bid must be > $${currentBid.amount}`
+                          : "Place Bid"}
                   </button>
                 </div>
 
