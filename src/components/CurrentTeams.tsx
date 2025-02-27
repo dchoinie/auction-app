@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import { useTeamsStore } from "~/store/teams";
 import { useRouter } from "next/navigation";
 import { useUser } from "@clerk/nextjs";
+import Link from "next/link";
 
 interface Team {
   id: number;
@@ -53,46 +54,49 @@ export default function CurrentTeams() {
           const isActive = team.ownerId === user?.id;
 
           return (
-            <div
+            <Link
               key={team.id}
-              className="relative overflow-hidden rounded-lg border bg-white p-4 shadow-sm transition-all hover:shadow-md"
+              href={`/dashboard/teams/${team.id}`}
+              className="block"
             >
-              {team.draftOrder && (
-                <div className="absolute right-0 top-0 flex h-8 w-8 items-center justify-center rounded-bl bg-blue-500 text-sm font-semibold text-white">
-                  {team.draftOrder}
-                </div>
-              )}
-              <div className="mb-2">
-                <h3 className="font-semibold text-gray-900">{team.name}</h3>
-                <p className="text-sm text-gray-500">{team.ownerName}</p>
-              </div>
-              <div className="mt-4 flex items-center justify-between text-sm">
-                <div className="flex items-center gap-2">
-                  <span className="flex h-6 w-6 items-center justify-center rounded-full bg-green-100 text-xs font-medium text-green-800">
-                    ${team.totalBudget}
-                  </span>
-                  <span className="text-gray-600">Budget</span>
-                </div>
-                {!team.draftOrder && (
-                  <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600">
-                    No Pick
-                  </span>
+              <div className="relative overflow-hidden rounded-lg border bg-white p-4 shadow-sm transition-all hover:border-blue-200 hover:shadow-md">
+                {team.draftOrder && (
+                  <div className="absolute right-0 top-0 flex h-8 w-8 items-center justify-center rounded-bl bg-blue-500 text-sm font-semibold text-white">
+                    {team.draftOrder}
+                  </div>
                 )}
-              </div>
-              <div className="mt-3 border-t pt-3">
-                <div className="flex items-center justify-between text-xs text-gray-500">
-                  <span>
-                    Created {new Date(team.createdAt).toLocaleDateString()}
-                  </span>
-                  <div className="flex items-center gap-1">
-                    <span
-                      className={`h-2 w-2 rounded-full ${isActive ? "bg-green-500" : "bg-gray-300"}`}
-                    ></span>
-                    {isActive ? "Active" : "Not Active"}
+                <div className="mb-2">
+                  <h3 className="font-semibold text-gray-900">{team.name}</h3>
+                  <p className="text-sm text-gray-500">{team.ownerName}</p>
+                </div>
+                <div className="mt-4 flex items-center justify-between text-sm">
+                  <div className="flex items-center gap-2">
+                    <span className="flex h-6 w-6 items-center justify-center rounded-full bg-green-100 text-xs font-medium text-green-800">
+                      ${team.totalBudget}
+                    </span>
+                    <span className="text-gray-600">Budget</span>
+                  </div>
+                  {!team.draftOrder && (
+                    <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600">
+                      No Pick
+                    </span>
+                  )}
+                </div>
+                <div className="mt-3 border-t pt-3">
+                  <div className="flex items-center justify-between text-xs text-gray-500">
+                    <span>
+                      Created {new Date(team.createdAt).toLocaleDateString()}
+                    </span>
+                    <div className="flex items-center gap-1">
+                      <span
+                        className={`h-2 w-2 rounded-full ${isActive ? "bg-green-500" : "bg-gray-300"}`}
+                      ></span>
+                      {isActive ? "Active" : "Not Active"}
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
+            </Link>
           );
         })}
     </div>

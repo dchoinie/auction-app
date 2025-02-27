@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/prefer-nullish-coalescing */
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
@@ -123,6 +124,7 @@ export default function DraftRoomPage() {
   const [bidIncrement] = useState(1);
   const [bidHistory, setBidHistory] = useState<BidHistoryItem[]>([]);
   const [teams, setTeams] = useState<Team[]>([]);
+  const [isLoadingTeams, setIsLoadingTeams] = useState(true);
   const [activeUserIds, setActiveUserIds] = useState<Set<string>>(new Set());
   const [showCountdown, setShowCountdown] = useState(false);
   const [selectedTeam, setSelectedTeam] = useState<Team | null>(null);
@@ -146,12 +148,10 @@ export default function DraftRoomPage() {
     onMessage(event: MessageEvent) {
       try {
         const data = JSON.parse(event.data as string) as DraftMessage;
-        console.log("Received message:", data);
 
         switch (data.type) {
           case "init_state":
             if (data.state?.currentBid) {
-              console.log("Received initial state:", data.state);
               setSelectedPlayer(data.state.selectedPlayer);
               setCurrentBid(data.state.currentBid);
               setBidAmount(
@@ -191,7 +191,6 @@ export default function DraftRoomPage() {
             break;
           case "new_bid":
             if (data.bid) {
-              console.log("Received new bid:", data.bid);
               setCurrentBid(data.bid);
               setBidAmount(data.bid.amount + 1);
 
@@ -242,18 +241,25 @@ export default function DraftRoomPage() {
   // Fetch teams on mount
   useEffect(() => {
     const fetchTeams = async () => {
-      const res = await fetch("/api/teams");
-      const data = (await res.json()) as TeamResponse[];
-      setTeams(
-        data.map((team) => ({
-          id: team.id,
-          name: team.name,
-          ownerName: team.ownerName,
-          ownerId: team.ownerId,
-          draftOrder: team.draftOrder,
-          totalBudget: team.totalBudget,
-        })),
-      );
+      setIsLoadingTeams(true);
+      try {
+        const res = await fetch("/api/teams");
+        const data = (await res.json()) as TeamResponse[];
+        setTeams(
+          data.map((team) => ({
+            id: team.id,
+            name: team.name,
+            ownerName: team.ownerName,
+            ownerId: team.ownerId,
+            draftOrder: team.draftOrder,
+            totalBudget: team.totalBudget,
+          })),
+        );
+      } catch (error) {
+        console.error("Error fetching teams:", error);
+      } finally {
+        setIsLoadingTeams(false);
+      }
     };
     void fetchTeams();
   }, []);
@@ -674,103 +680,112 @@ export default function DraftRoomPage() {
         {/* Teams sidebar */}
         <div className="col-span-3 rounded-lg border p-4">
           <h2 className="mb-4 text-lg font-semibold">Teams</h2>
-          <div className="space-y-2">
-            {[...teams]
-              .sort(
-                (a, b) =>
-                  (a.draftOrder ?? Infinity) - (b.draftOrder ?? Infinity),
-              )
-              .map((team) => {
-                const remainingBudget =
-                  team.totalBudget - (teamBudgets[team.id] ?? 0);
-                const roster = rosters.find((r) => r.teamId === team.id);
-                const filledSpots = roster
-                  ? Object.entries(roster).filter(
-                      ([key, value]) =>
-                        key !== "id" && key !== "teamId" && value !== null,
-                    ).length
-                  : 0;
-                const totalRosterSpots = 14;
-                const remainingSpots = totalRosterSpots - filledSpots;
+          {isLoadingTeams ? (
+            <div className="flex flex-col items-center justify-center py-8">
+              <div className="h-8 w-8 animate-spin rounded-full border-4 border-solid border-blue-500 border-r-transparent"></div>
+              <p className="mt-4 text-sm text-gray-500">Loading teams...</p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {[...teams]
+                .sort(
+                  (a, b) =>
+                    (a.draftOrder ?? Infinity) - (b.draftOrder ?? Infinity),
+                )
+                .map((team) => {
+                  const remainingBudget =
+                    team.totalBudget - (teamBudgets[team.id] ?? 0);
+                  const roster = rosters.find((r) => r.teamId === team.id);
+                  const filledSpots = roster
+                    ? Object.entries(roster).filter(
+                        ([key, value]) =>
+                          key !== "id" && key !== "teamId" && value !== null,
+                      ).length
+                    : 0;
+                  const totalRosterSpots = 14;
+                  const remainingSpots = totalRosterSpots - filledSpots;
 
-                // For a team with $200 budget and 14 empty spots, max bid should be $187
-                // This is because they need to reserve $1 for each of the 13 other spots
-                let maxBid = remainingBudget - (remainingSpots - 1);
+                  // For a team with $200 budget and 14 empty spots, max bid should be $187
+                  // This is because they need to reserve $1 for each of the 13 other spots
+                  let maxBid = remainingBudget - (remainingSpots - 1);
 
-                // Special case fix for teams with $200 budget and 14 empty spots
-                if (
-                  team.totalBudget === 200 &&
-                  remainingBudget === 200 &&
-                  remainingSpots === 14
-                ) {
-                  maxBid = 187; // Force the correct value
-                }
+                  // Special case fix for teams with $200 budget and 14 empty spots
+                  if (
+                    team.totalBudget === 200 &&
+                    remainingBudget === 200 &&
+                    remainingSpots === 14
+                  ) {
+                    maxBid = 187; // Force the correct value
+                  }
 
-                // Debug logging
-                if (team.totalBudget === 200 && filledSpots === 0) {
-                  console.log(`Team ${team.id} max bid calculation:`, {
-                    remainingBudget,
-                    remainingSpots,
-                    maxBid,
-                    calculation: `${remainingBudget} - (${remainingSpots} - 1) = ${maxBid}`,
+                  // Debug logging
+                  if (team.totalBudget === 200 && filledSpots === 0) {
+                    console.log(`Team ${team.id} max bid calculation:`, {
+                      remainingBudget,
+                      remainingSpots,
+                      maxBid,
+                      calculation: `${remainingBudget} - (${remainingSpots} - 1) = ${maxBid}`,
+                    });
+                  }
+
+                  console.log(`Team ${team.id}:`, {
+                    totalBudget: team.totalBudget,
+                    spentAmount: teamBudgets[team.id],
+                    remaining: team.totalBudget - (teamBudgets[team.id] ?? 0),
                   });
-                }
 
-                console.log(`Team ${team.id}:`, {
-                  totalBudget: team.totalBudget,
-                  spentAmount: teamBudgets[team.id],
-                  remaining: team.totalBudget - (teamBudgets[team.id] ?? 0),
-                });
-
-                return (
-                  <div key={team.id} className="rounded-lg border p-2">
-                    <div className="flex items-center gap-2">
-                      <div
-                        className={`h-2 w-2 rounded-full ${
-                          activeUserIds.has(team.ownerId)
-                            ? "bg-green-500"
-                            : "bg-gray-300"
-                        }`}
-                      />
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2">
-                          {team.draftOrder && (
-                            <span className="text-sm font-semibold text-blue-600">
-                              #{team.draftOrder}
+                  return (
+                    <div key={team.id} className="rounded-lg border p-2">
+                      <div className="flex items-center gap-2">
+                        <div
+                          className={`h-2 w-2 rounded-full ${
+                            activeUserIds.has(team.ownerId)
+                              ? "bg-green-500"
+                              : "bg-gray-300"
+                          }`}
+                        />
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2">
+                            {team.draftOrder && (
+                              <span className="text-sm font-semibold text-blue-600">
+                                #{team.draftOrder}
+                              </span>
+                            )}
+                            <span className="font-medium">{team.name}</span>
+                            {team.ownerId === user?.id && (
+                              <span className="text-xs text-gray-500">
+                                (You)
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-xs text-gray-600">
+                            {team.ownerName}
+                          </p>
+                          <div className="mt-1 text-sm">
+                            <span className="font-medium text-green-600">
+                              ${team.totalBudget - (teamBudgets[team.id] ?? 0)}
                             </span>
-                          )}
-                          <span className="font-medium">{team.name}</span>
-                          {team.ownerId === user?.id && (
-                            <span className="text-xs text-gray-500">(You)</span>
-                          )}
+                            <span className="text-gray-500"> remaining</span>
+                          </div>
+                          <div className="mt-1 text-sm">
+                            <span className="font-medium text-amber-600">
+                              ${maxBid > 0 ? maxBid : 0}
+                            </span>
+                            <span className="text-gray-500"> max bid</span>
+                          </div>
+                          <button
+                            onClick={() => setSelectedTeam(team)}
+                            className="mt-2 text-sm text-blue-600 hover:text-blue-800"
+                          >
+                            View Team
+                          </button>
                         </div>
-                        <p className="text-xs text-gray-600">
-                          {team.ownerName}
-                        </p>
-                        <div className="mt-1 text-sm">
-                          <span className="font-medium text-green-600">
-                            ${team.totalBudget - (teamBudgets[team.id] ?? 0)}
-                          </span>
-                          <span className="text-gray-500"> remaining</span>
-                        </div>
-                        <div className="mt-1 text-sm">
-                          <span className="font-medium text-amber-600">
-                            ${maxBid > 0 ? maxBid : 0}
-                          </span>
-                          <span className="text-gray-500"> max bid</span>
-                        </div>
-                        <button
-                          onClick={() => setSelectedTeam(team)}
-                          className="mt-2 text-sm text-blue-600 hover:text-blue-800"
-                        >
-                          View Team
-                        </button>
                       </div>
                     </div>
-                  </div>
-                );
-              })}
-          </div>
+                  );
+                })}
+            </div>
+          )}
         </div>
       </div>
 

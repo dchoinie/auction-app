@@ -3,11 +3,12 @@ import { persist } from "zustand/middleware";
 
 interface Team {
   id: number;
-  ownerId: string;
-  ownerName: string;
   name: string;
-  createdAt: Date;
-  updatedAt: Date | null;
+  ownerName: string;
+  ownerId: string;
+  draftOrder: number | null;
+  totalBudget: number;
+  createdAt: string;
 }
 
 interface ApiError {

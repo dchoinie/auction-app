@@ -55,7 +55,7 @@ function SortableTeamItem({ team, isModified }: SortableTeamItemProps) {
     <div
       ref={setNodeRef}
       style={style}
-      className={`flex items-center gap-4 rounded-lg border p-4 ${
+      className={`my-12 flex items-center gap-4 rounded-lg border p-4 ${
         isDragging ? "bg-blue-50 shadow-lg" : "bg-white"
       } ${isModified ? "border-amber-500" : ""}`}
       {...attributes}
@@ -81,6 +81,7 @@ export default function AdminPage() {
     Record<number, number>
   >({});
   const [isUpdating, setIsUpdating] = useState(false);
+  const [isResettingDraft, setIsResettingDraft] = useState(false);
   const [updateMessage, setUpdateMessage] = useState<{
     type: "success" | "error";
     text: string;
@@ -201,6 +202,49 @@ export default function AdminPage() {
     });
   };
 
+  const handleResetDraft = async () => {
+    if (
+      !confirm(
+        "Are you sure you want to reset the draft? This will clear all rosters, player assignments, and budgets. This action cannot be undone.",
+      )
+    ) {
+      return;
+    }
+
+    setIsResettingDraft(true);
+    setUpdateMessage(null);
+
+    try {
+      // Reset rosters
+      await fetch("/api/rosters/reset", {
+        method: "POST",
+      });
+
+      // Reset NFL players
+      await fetch("/api/nfl-players/reset", {
+        method: "POST",
+      });
+
+      // Reset team budgets
+      await fetch("/api/teams/budget/reset", {
+        method: "POST",
+      });
+
+      setUpdateMessage({
+        type: "success",
+        text: "Draft has been reset successfully",
+      });
+    } catch (error) {
+      console.error("Error resetting draft:", error);
+      setUpdateMessage({
+        type: "error",
+        text: "Failed to reset draft",
+      });
+    } finally {
+      setIsResettingDraft(false);
+    }
+  };
+
   const hasUnsavedChanges = Object.keys(draftOrderChanges).length > 0;
 
   return (
@@ -281,6 +325,35 @@ export default function AdminPage() {
       {/* Player Import Section */}
       <div className="mb-8">
         <PlayerImport />
+      </div>
+
+      {/* Reset Draft Section */}
+      <div className="rounded-lg border border-red-200 bg-red-50 p-6">
+        <h2 className="mb-4 text-xl font-semibold text-red-800">Reset Draft</h2>
+        <p className="mb-6 text-red-700">
+          Warning: This action will reset the entire draft. It will clear all
+          rosters, player assignments, and team budgets. This action cannot be
+          undone.
+        </p>
+        <div className="flex items-center justify-between">
+          <button
+            onClick={handleResetDraft}
+            disabled={isResettingDraft}
+            className={`rounded-md px-6 py-3 text-white ${
+              isResettingDraft
+                ? "cursor-not-allowed bg-red-400"
+                : "bg-red-600 hover:bg-red-700"
+            }`}
+          >
+            {isResettingDraft ? "Resetting Draft..." : "Reset Draft"}
+          </button>
+          {updateMessage && updateMessage.type === "success" && (
+            <span className="text-green-600">{updateMessage.text}</span>
+          )}
+          {updateMessage && updateMessage.type === "error" && (
+            <span className="text-red-600">{updateMessage.text}</span>
+          )}
+        </div>
       </div>
     </Container>
   );

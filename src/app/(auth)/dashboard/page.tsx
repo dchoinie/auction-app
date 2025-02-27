@@ -21,7 +21,7 @@ export default function DashboardPage() {
   const { teams, hasFetched, fetchTeams } = useTeamsStore();
   const { user } = useUser();
 
-  const userTeam = teams.find((team) => team.ownerId === user?.id);
+  const userTeam = teams.find((team: Team) => team.ownerId === user?.id);
 
   useEffect(() => {
     if (!hasFetched) {
@@ -86,7 +86,10 @@ export default function DashboardPage() {
 
       <div className="mb-8 grid gap-6 md:grid-cols-2 lg:grid-cols-3">
         {/* Team Stats Card */}
-        <div className="rounded-lg border bg-white p-6 shadow-sm">
+        <Link
+          href={`/dashboard/teams/${userTeam.id}`}
+          className="rounded-lg border bg-white p-6 shadow-sm transition-all hover:border-blue-200 hover:shadow-md"
+        >
           <h2 className="mb-4 text-lg font-semibold text-gray-800">
             Team Stats
           </h2>
@@ -110,7 +113,7 @@ export default function DashboardPage() {
               </span>
             </div>
           </div>
-        </div>
+        </Link>
 
         {/* Quick Actions Card */}
         <div className="rounded-lg border bg-white p-6 shadow-sm">
@@ -125,7 +128,7 @@ export default function DashboardPage() {
               Enter Draft Room
             </Link>
             <Link
-              href="/dashboard/roster"
+              href={`/dashboard/teams/${userTeam.id}`}
               className="rounded-md bg-gray-100 px-4 py-2 text-center text-gray-700 transition-all hover:bg-gray-200"
             >
               View Roster
