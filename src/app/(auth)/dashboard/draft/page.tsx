@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import Container from "~/components/Container";
 import { usePartySocket } from "partysocket/react";
 import { useNFLPlayersStore } from "~/store/nfl-players";
+import { useNominationStore } from "~/store/nomination";
 import NFLPlayerSelect from "./components/NFLPlayerSelect";
 import Countdown from "./components/Countdown";
 import RosterModal from "./components/RosterModal";
@@ -114,6 +115,8 @@ interface Roster {
 export default function DraftRoomPage() {
   const router = useRouter();
   const { user } = useUser();
+  const { currentNominatorDraftOrder, moveToNextNominator } =
+    useNominationStore();
   const [activeUsers, setActiveUsers] = useState<DraftUser[]>([]);
   const [isConnected, setIsConnected] = useState(false);
   const { players, fetchPlayers, updatePlayer, invalidateCache } =
@@ -132,6 +135,7 @@ export default function DraftRoomPage() {
   const [rosters, setRosters] = useState<Roster[]>([]);
   const [isAssigningPlayer, setIsAssigningPlayer] = useState(false);
   const [isSelling, setIsSelling] = useState(false);
+  const [nominationError, setNominationError] = useState<string | null>(null);
 
   const socket = usePartySocket({
     host: process.env.NEXT_PUBLIC_PARTYKIT_HOST!,
@@ -324,7 +328,28 @@ export default function DraftRoomPage() {
 
   const handlePlayerSelect = (playerId: number) => {
     const player = players.find((p) => p.id === playerId);
+    // Only allow selection if it's the user's team's turn to nominate
+    const userTeam = teams.find((team) => team.ownerId === user?.id);
+
+    if (!userTeam) {
+      setNominationError("You must be on a team to nominate players");
+      setTimeout(() => setNominationError(null), 5000);
+      return;
+    }
+
+    if (userTeam.draftOrder !== currentNominatorDraftOrder) {
+      const currentNominator = teams.find(
+        (t) => t.draftOrder === currentNominatorDraftOrder,
+      );
+      setNominationError(
+        `It's ${currentNominator?.name}'s turn to nominate a player`,
+      );
+      setTimeout(() => setNominationError(null), 5000);
+      return;
+    }
+
     if (player && user) {
+      setNominationError(null);
       setSelectedPlayer(player);
       setCurrentBid(null);
       setBidAmount(1);
@@ -422,6 +447,9 @@ export default function DraftRoomPage() {
         draftedAmount: currentBid.amount,
       });
 
+      // Move to next nominator after player is drafted
+      moveToNextNominator();
+
       // Clear the selected player and current bid
       setSelectedPlayer(null);
       setCurrentBid(null);
@@ -442,7 +470,7 @@ export default function DraftRoomPage() {
       setIsAssigningPlayer(false);
       setIsSelling(false);
     }
-  }, [selectedPlayer, currentBid, socket, updatePlayer]);
+  }, [selectedPlayer, currentBid, socket, updatePlayer, moveToNextNominator]);
 
   const handleCountdownCancel = useCallback(() => {
     setShowCountdown(false);
@@ -475,10 +503,28 @@ export default function DraftRoomPage() {
             <p className="mt-4 text-green-600">Connected to draft room</p>
           )}
 
+          {/* Nomination Error Alert */}
+          {nominationError && (
+            <div className="mt-4 rounded-lg border border-red-500 bg-red-50 p-3 text-red-700">
+              <p className="font-medium">{nominationError}</p>
+            </div>
+          )}
+
           {/* Replace the old dropdown with the new component */}
           <NFLPlayerSelect
             selectedPlayerId={selectedPlayer?.id}
             onPlayerSelect={handlePlayerSelect}
+            isDisabled={
+              !user ||
+              !teams.find((team) => team.ownerId === user.id)?.draftOrder ||
+              teams.find((team) => team.ownerId === user.id)?.draftOrder !==
+                currentNominatorDraftOrder
+            }
+            currentNominator={
+              teams.find(
+                (team) => team.draftOrder === currentNominatorDraftOrder,
+              )?.name
+            }
           />
 
           {/* Loading overlay for player assignment */}
@@ -704,6 +750,8 @@ export default function DraftRoomPage() {
                     : 0;
                   const totalRosterSpots = 14;
                   const remainingSpots = totalRosterSpots - filledSpots;
+                  const isCurrentNominator =
+                    team.draftOrder === currentNominatorDraftOrder;
 
                   // For a team with $200 budget and 14 empty spots, max bid should be $187
                   // This is because they need to reserve $1 for each of the 13 other spots
@@ -735,7 +783,14 @@ export default function DraftRoomPage() {
                   });
 
                   return (
-                    <div key={team.id} className="rounded-lg border p-2">
+                    <div
+                      key={team.id}
+                      className={`rounded-lg border p-2 transition-all ${
+                        isCurrentNominator
+                          ? "border-blue-500 bg-blue-50 shadow-md"
+                          : ""
+                      }`}
+                    >
                       <div className="flex items-center gap-2">
                         <div
                           className={`h-2 w-2 rounded-full ${
@@ -755,6 +810,11 @@ export default function DraftRoomPage() {
                             {team.ownerId === user?.id && (
                               <span className="text-xs text-gray-500">
                                 (You)
+                              </span>
+                            )}
+                            {isCurrentNominator && (
+                              <span className="ml-1 rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-800">
+                                Nominating
                               </span>
                             )}
                           </div>
