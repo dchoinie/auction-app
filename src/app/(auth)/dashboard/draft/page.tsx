@@ -742,45 +742,57 @@ export default function DraftRoomPage() {
                   const remainingBudget =
                     team.totalBudget - (teamBudgets[team.id] ?? 0);
                   const roster = rosters.find((r) => r.teamId === team.id);
+
+                  // Debug the roster object
+                  console.log(`Team ${team.name} roster:`, roster);
+
+                  // Count filled spots by checking each roster position
+                  const rosterPositions = [
+                    "QB",
+                    "RB1",
+                    "RB2",
+                    "WR1",
+                    "WR2",
+                    "TE",
+                    "Flex1",
+                    "Flex2",
+                    "Bench1",
+                    "Bench2",
+                    "Bench3",
+                    "Bench4",
+                    "Bench5",
+                    "Bench6",
+                  ];
+
                   const filledSpots = roster
-                    ? Object.entries(roster).filter(
-                        ([key, value]) =>
-                          key !== "id" && key !== "teamId" && value !== null,
+                    ? rosterPositions.filter(
+                        (pos) => roster[pos as keyof typeof roster] !== null,
                       ).length
                     : 0;
+
+                  // Total required roster spots is 14 (QB, RB1, RB2, WR1, WR2, TE, Flex1, Flex2, Bench1-6)
                   const totalRosterSpots = 14;
                   const remainingSpots = totalRosterSpots - filledSpots;
-                  const isCurrentNominator =
-                    team.draftOrder === currentNominatorDraftOrder;
 
-                  // For a team with $200 budget and 14 empty spots, max bid should be $187
-                  // This is because they need to reserve $1 for each of the 13 other spots
-                  let maxBid = remainingBudget - (remainingSpots - 1);
-
-                  // Special case fix for teams with $200 budget and 14 empty spots
-                  if (
-                    team.totalBudget === 200 &&
-                    remainingBudget === 200 &&
-                    remainingSpots === 14
-                  ) {
-                    maxBid = 187; // Force the correct value
-                  }
+                  // For max bid, we need to reserve $1 for each remaining spot after this one
+                  // If we have 14 total spots and 0 filled spots, we need to reserve $13 (for the 13 spots after this one)
+                  const reserveAmount = remainingSpots - 1; // Subtract 1 because we don't need to reserve for the current spot
+                  const maxBid = Math.max(0, remainingBudget - reserveAmount);
 
                   // Debug logging
-                  if (team.totalBudget === 200 && filledSpots === 0) {
-                    console.log(`Team ${team.id} max bid calculation:`, {
-                      remainingBudget,
-                      remainingSpots,
-                      maxBid,
-                      calculation: `${remainingBudget} - (${remainingSpots} - 1) = ${maxBid}`,
-                    });
-                  }
-
-                  console.log(`Team ${team.id}:`, {
+                  console.log(`Team ${team.name} max bid calculation:`, {
                     totalBudget: team.totalBudget,
-                    spentAmount: teamBudgets[team.id],
-                    remaining: team.totalBudget - (teamBudgets[team.id] ?? 0),
+                    spentBudget: teamBudgets[team.id] ?? 0,
+                    remainingBudget,
+                    filledSpots,
+                    remainingSpots,
+                    reserveAmount,
+                    maxBid,
+                    calculation: `${remainingBudget} - ${reserveAmount} = ${maxBid}`,
                   });
+
+                  const isCurrentNominator =
+                    team.draftOrder === currentNominatorDraftOrder;
 
                   return (
                     <div
@@ -823,7 +835,7 @@ export default function DraftRoomPage() {
                           </p>
                           <div className="mt-1 text-sm">
                             <span className="font-medium text-green-600">
-                              ${team.totalBudget - (teamBudgets[team.id] ?? 0)}
+                              ${remainingBudget}
                             </span>
                             <span className="text-gray-500"> remaining</span>
                           </div>
