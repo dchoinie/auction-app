@@ -833,17 +833,33 @@ export default function DraftRoomPage() {
                           <p className="text-xs text-gray-600">
                             {team.ownerName}
                           </p>
-                          <div className="mt-1 text-sm">
-                            <span className="font-medium text-green-600">
-                              ${remainingBudget}
-                            </span>
-                            <span className="text-gray-500"> remaining</span>
+                          <div className="mt-1 flex items-center justify-between">
+                            <div className="text-sm">
+                              <span className="font-medium text-green-600">
+                                ${remainingBudget}
+                              </span>
+                              <span className="text-gray-500"> remaining</span>
+                            </div>
+                            <div className="text-sm">
+                              <span className="font-medium text-blue-600">
+                                {filledSpots}
+                              </span>
+                              <span className="text-gray-500"> filled</span>
+                            </div>
                           </div>
-                          <div className="mt-1 text-sm">
-                            <span className="font-medium text-amber-600">
-                              ${maxBid > 0 ? maxBid : 0}
-                            </span>
-                            <span className="text-gray-500"> max bid</span>
+                          <div className="mt-1 flex items-center justify-between">
+                            <div className="text-sm">
+                              <span className="font-medium text-amber-600">
+                                ${maxBid > 0 ? maxBid : 0}
+                              </span>
+                              <span className="text-gray-500"> max bid</span>
+                            </div>
+                            <div className="text-sm">
+                              <span className="font-medium text-blue-600">
+                                {remainingSpots}
+                              </span>
+                              <span className="text-gray-500"> remaining</span>
+                            </div>
                           </div>
                           <button
                             onClick={() => setSelectedTeam(team)}
