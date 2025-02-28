@@ -479,252 +479,9 @@ export default function DraftRoomPage() {
 
   return (
     <Container>
-      <div className="my-12 grid grid-cols-12 gap-4">
-        <div className="col-span-9 rounded-lg border p-4">
-          <div className="flex items-center justify-between">
-            <h1 className="text-2xl font-bold">Draft Room</h1>
-            {isConnected && (
-              <button
-                onClick={leaveDraftRoom}
-                className="rounded bg-red-500 px-4 py-2 text-white hover:bg-red-600"
-              >
-                Leave Room
-              </button>
-            )}
-          </div>
-          {!isConnected ? (
-            <button
-              onClick={joinDraftRoom}
-              className="mt-4 rounded bg-blue-500 px-4 py-2 text-white hover:bg-blue-600"
-            >
-              Join Draft Room
-            </button>
-          ) : (
-            <p className="mt-4 text-green-600">Connected to draft room</p>
-          )}
-
-          {/* Nomination Error Alert */}
-          {nominationError && (
-            <div className="mt-4 rounded-lg border border-red-500 bg-red-50 p-3 text-red-700">
-              <p className="font-medium">{nominationError}</p>
-            </div>
-          )}
-
-          {/* Replace the old dropdown with the new component */}
-          <NFLPlayerSelect
-            selectedPlayerId={selectedPlayer?.id}
-            onPlayerSelect={handlePlayerSelect}
-            isDisabled={
-              !user ||
-              !teams.find((team) => team.ownerId === user.id)?.draftOrder ||
-              teams.find((team) => team.ownerId === user.id)?.draftOrder !==
-                currentNominatorDraftOrder
-            }
-            currentNominator={
-              teams.find(
-                (team) => team.draftOrder === currentNominatorDraftOrder,
-              )?.name
-            }
-          />
-
-          {/* Loading overlay for player assignment */}
-          {isAssigningPlayer && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
-              <div className="rounded-lg bg-white p-6 text-center shadow-xl">
-                <div className="mb-4 inline-block h-12 w-12 animate-spin rounded-full border-4 border-solid border-blue-600 border-r-transparent"></div>
-                <p className="text-lg font-medium">
-                  Assigning player and updating budgets
-                </p>
-              </div>
-            </div>
-          )}
-
-          {/* Selected Player and Current Bid */}
-          {selectedPlayer && (
-            <div className="mb-6 rounded-lg border-2 border-blue-500 bg-blue-50 p-6 shadow-md">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h2 className="text-2xl font-bold text-blue-800">
-                    {selectedPlayer.firstName} {selectedPlayer.lastName}
-                  </h2>
-                  <p className="text-lg text-blue-600">
-                    {selectedPlayer.position} - {selectedPlayer.nflTeamName}
-                  </p>
-                </div>
-
-                {currentBid ? (
-                  <div className="rounded-lg border-2 border-green-500 bg-green-100 p-4">
-                    <div className="text-sm font-medium text-green-800">
-                      Current Leader
-                    </div>
-                    <div className="text-2xl font-bold text-green-700">
-                      ${currentBid.amount}
-                    </div>
-                    <div className="text-sm text-green-600">
-                      by {currentBid.userName}
-                    </div>
-                  </div>
-                ) : (
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => {
-                        if (!user) return;
-
-                        // Find the user's team
-                        const userTeam = teams.find(
-                          (team) => team.ownerId === user.id,
-                        );
-                        if (!userTeam) return;
-
-                        // Create initial bid
-                        const initialBid: DraftBid = {
-                          userId: user.id,
-                          userName: `${user.firstName} ${user.lastName}`,
-                          amount: 1,
-                          timestamp: Date.now(),
-                          teamId: userTeam.id,
-                        };
-
-                        // Update local state
-                        setCurrentBid(initialBid);
-                        setBidAmount(2); // Set next bid to $2
-                        setBidHistory((prev) =>
-                          [
-                            { ...initialBid, isHighestBid: true },
-                            ...prev.map((bid) => ({
-                              ...bid,
-                              isHighestBid: false,
-                            })),
-                          ].slice(0, 10),
-                        );
-
-                        // Send to server
-                        socket.send(
-                          JSON.stringify({
-                            type: "new_bid",
-                            bid: initialBid,
-                          }),
-                        );
-                      }}
-                      className="rounded bg-green-500 px-4 py-2 text-white hover:bg-green-600"
-                    >
-                      Confirm Selection ($1)
-                    </button>
-                    <button
-                      onClick={() => {
-                        setSelectedPlayer(null);
-                        socket.send(
-                          JSON.stringify({
-                            type: "select_player",
-                            player: null,
-                          }),
-                        );
-                      }}
-                      className="rounded bg-gray-500 px-4 py-2 text-white hover:bg-gray-600"
-                    >
-                      Cancel Selection
-                    </button>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* Simplified Bidding Controls */}
-          {selectedPlayer && (
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                  <label className="text-sm font-medium text-gray-700">
-                    Bid Amount:
-                  </label>
-                  <button
-                    onClick={() => adjustBidAmount(-bidIncrement)}
-                    className="rounded bg-gray-200 px-3 py-1"
-                  >
-                    -
-                  </button>
-                  <span className="min-w-[3ch] text-center">${bidAmount}</span>
-                  <button
-                    onClick={() => adjustBidAmount(bidIncrement)}
-                    className="rounded bg-gray-200 px-3 py-1"
-                  >
-                    +
-                  </button>
-                  <button
-                    onClick={handleBidSubmit}
-                    disabled={Boolean(
-                      !selectedPlayer ||
-                        (currentBid && bidAmount <= currentBid.amount) ||
-                        isSelling,
-                    )}
-                    className={`rounded px-4 py-2 text-white ${
-                      !selectedPlayer ||
-                      (currentBid && bidAmount <= currentBid.amount) ||
-                      isSelling
-                        ? "cursor-not-allowed bg-gray-400"
-                        : "bg-blue-500 hover:bg-blue-600"
-                    }`}
-                  >
-                    {!selectedPlayer
-                      ? "Select a Player"
-                      : isSelling
-                        ? "Bidding Closed"
-                        : currentBid && bidAmount <= currentBid.amount
-                          ? `Bid must be > $${currentBid.amount}`
-                          : "Place Bid"}
-                  </button>
-                </div>
-
-                {currentBid && (
-                  <button
-                    onClick={() => setShowCountdown(true)}
-                    className="rounded bg-yellow-500 px-4 py-2 text-white hover:bg-yellow-600"
-                    disabled={showCountdown}
-                  >
-                    Trigger Countdown
-                  </button>
-                )}
-              </div>
-
-              {/* Bid History */}
-              <div className="mt-6">
-                <h3 className="mb-3 text-lg font-semibold">Bid History</h3>
-                <div className="space-y-2">
-                  {bidHistory.map((bid, index) => (
-                    <div
-                      key={bid.timestamp}
-                      className={`rounded-lg border p-3 ${
-                        bid.isHighestBid
-                          ? "border-green-500 bg-green-50"
-                          : "bg-gray-50"
-                      }`}
-                    >
-                      <div className="flex items-center justify-between">
-                        <span className="font-medium">{bid.userName}</span>
-                        <span className="text-lg font-bold">${bid.amount}</span>
-                      </div>
-                      <div className="text-sm text-gray-500">
-                        {new Date(bid.timestamp).toLocaleTimeString()}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Countdown overlay */}
-          {showCountdown && (
-            <Countdown
-              onComplete={handleCountdownComplete}
-              onCancel={handleCountdownCancel}
-            />
-          )}
-        </div>
-
-        {/* Teams sidebar */}
-        <div className="col-span-3 rounded-lg border p-4">
+      <div className="my-12 flex flex-col gap-4">
+        {/* Teams section - now horizontal at top */}
+        <div className="rounded-lg border p-4">
           <h2 className="mb-4 text-lg font-semibold">Teams</h2>
           {isLoadingTeams ? (
             <div className="flex flex-col items-center justify-center py-8">
@@ -732,7 +489,7 @@ export default function DraftRoomPage() {
               <p className="mt-4 text-sm text-gray-500">Loading teams...</p>
             </div>
           ) : (
-            <div className="space-y-2">
+            <div className="grid grid-cols-3 gap-2 lg:grid-cols-4 xl:grid-cols-5">
               {[...teams]
                 .sort(
                   (a, b) =>
@@ -742,9 +499,6 @@ export default function DraftRoomPage() {
                   const remainingBudget =
                     team.totalBudget - (teamBudgets[team.id] ?? 0);
                   const roster = rosters.find((r) => r.teamId === team.id);
-
-                  // Debug the roster object
-                  console.log(`Team ${team.name} roster:`, roster);
 
                   // Count filled spots by checking each roster position
                   const rosterPositions = [
@@ -770,27 +524,10 @@ export default function DraftRoomPage() {
                       ).length
                     : 0;
 
-                  // Total required roster spots is 14 (QB, RB1, RB2, WR1, WR2, TE, Flex1, Flex2, Bench1-6)
                   const totalRosterSpots = 14;
                   const remainingSpots = totalRosterSpots - filledSpots;
-
-                  // For max bid, we need to reserve $1 for each remaining spot after this one
-                  // If we have 14 total spots and 0 filled spots, we need to reserve $13 (for the 13 spots after this one)
-                  const reserveAmount = remainingSpots - 1; // Subtract 1 because we don't need to reserve for the current spot
+                  const reserveAmount = remainingSpots - 1;
                   const maxBid = Math.max(0, remainingBudget - reserveAmount);
-
-                  // Debug logging
-                  console.log(`Team ${team.name} max bid calculation:`, {
-                    totalBudget: team.totalBudget,
-                    spentBudget: teamBudgets[team.id] ?? 0,
-                    remainingBudget,
-                    filledSpots,
-                    remainingSpots,
-                    reserveAmount,
-                    maxBid,
-                    calculation: `${remainingBudget} - ${reserveAmount} = ${maxBid}`,
-                  });
-
                   const isCurrentNominator =
                     team.draftOrder === currentNominatorDraftOrder;
 
@@ -873,6 +610,269 @@ export default function DraftRoomPage() {
                   );
                 })}
             </div>
+          )}
+        </div>
+
+        {/* Main draft room content */}
+        <div className="rounded-lg border p-4">
+          <div className="flex items-center justify-between">
+            <h1 className="text-2xl font-bold">Draft Room</h1>
+            {isConnected && (
+              <button
+                onClick={leaveDraftRoom}
+                className="rounded bg-red-500 px-4 py-2 text-white hover:bg-red-600"
+              >
+                Leave Room
+              </button>
+            )}
+          </div>
+          {!isConnected ? (
+            <button
+              onClick={joinDraftRoom}
+              className="mt-4 rounded bg-blue-500 px-4 py-2 text-white hover:bg-blue-600"
+            >
+              Join Draft Room
+            </button>
+          ) : (
+            <p className="mt-4 text-green-600">Connected to draft room</p>
+          )}
+
+          {/* Nomination Error Alert */}
+          {nominationError && (
+            <div className="mt-4 rounded-lg border border-red-500 bg-red-50 p-3 text-red-700">
+              <p className="font-medium">{nominationError}</p>
+            </div>
+          )}
+
+          {/* Replace the old dropdown with the new component */}
+          <NFLPlayerSelect
+            selectedPlayerId={selectedPlayer?.id}
+            onPlayerSelect={handlePlayerSelect}
+            isDisabled={
+              !user ||
+              !teams.find((team) => team.ownerId === user.id)?.draftOrder ||
+              teams.find((team) => team.ownerId === user.id)?.draftOrder !==
+                currentNominatorDraftOrder
+            }
+            currentNominator={
+              teams.find(
+                (team) => team.draftOrder === currentNominatorDraftOrder,
+              )?.name
+            }
+          />
+
+          {/* Loading overlay for player assignment */}
+          {isAssigningPlayer && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+              <div className="rounded-lg bg-white p-6 text-center shadow-xl">
+                <div className="mb-4 inline-block h-12 w-12 animate-spin rounded-full border-4 border-solid border-blue-600 border-r-transparent"></div>
+                <p className="text-lg font-medium">
+                  Assigning player and updating budgets
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* Selected Player and Current Bid */}
+          {selectedPlayer && (
+            <div className="mb-6 space-y-6 overflow-hidden rounded-xl border-2 border-blue-500 bg-gradient-to-br from-blue-50 via-white to-blue-50 p-8 shadow-2xl transition-all">
+              <div className="relative">
+                {/* Sparkle effects */}
+                <div className="absolute -left-4 -top-4 h-12 w-12 animate-pulse rounded-full bg-blue-200 opacity-50 blur-xl"></div>
+                <div className="absolute -bottom-4 -right-4 h-12 w-12 animate-pulse rounded-full bg-blue-200 opacity-50 blur-xl"></div>
+
+                <div className="flex items-center justify-between">
+                  <div className="relative">
+                    <div className="animate-pulse-slow absolute -inset-1 rounded-lg bg-gradient-to-r from-blue-600 via-sky-400 to-blue-600 opacity-20 blur"></div>
+                    <div className="relative">
+                      <h2 className="bg-gradient-to-r from-blue-700 via-blue-800 to-blue-900 bg-clip-text text-4xl font-bold text-transparent">
+                        {selectedPlayer.firstName} {selectedPlayer.lastName}
+                      </h2>
+                      <div className="mt-2 flex items-center gap-3">
+                        <span className="rounded-full bg-blue-100 px-3 py-1 text-lg font-semibold text-blue-800">
+                          {selectedPlayer.position}
+                        </span>
+                        <span className="text-lg text-blue-600">
+                          {selectedPlayer.nflTeamName}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {currentBid ? (
+                    <div className="relative">
+                      <div className="animate-pulse-slow absolute -inset-1 rounded-lg bg-gradient-to-r from-green-600 via-emerald-400 to-green-600 opacity-20 blur"></div>
+                      <div className="relative rounded-xl border-2 border-green-500 bg-gradient-to-b from-green-50 to-white p-6 shadow-lg">
+                        <div className="text-sm font-medium text-green-800">
+                          Current Leader
+                        </div>
+                        <div className="bg-gradient-to-r from-green-600 to-green-800 bg-clip-text text-3xl font-bold text-transparent">
+                          ${currentBid.amount}
+                        </div>
+                        <div className="text-sm font-medium text-green-600">
+                          by {currentBid.userName}
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => {
+                          if (!user) return;
+
+                          // Find the user's team
+                          const userTeam = teams.find(
+                            (team) => team.ownerId === user.id,
+                          );
+                          if (!userTeam) return;
+
+                          // Create initial bid
+                          const initialBid: DraftBid = {
+                            userId: user.id,
+                            userName: `${user.firstName} ${user.lastName}`,
+                            amount: 1,
+                            timestamp: Date.now(),
+                            teamId: userTeam.id,
+                          };
+
+                          // Update local state
+                          setCurrentBid(initialBid);
+                          setBidAmount(2); // Set next bid to $2
+                          setBidHistory((prev) =>
+                            [
+                              { ...initialBid, isHighestBid: true },
+                              ...prev.map((bid) => ({
+                                ...bid,
+                                isHighestBid: false,
+                              })),
+                            ].slice(0, 10),
+                          );
+
+                          // Send to server
+                          socket.send(
+                            JSON.stringify({
+                              type: "new_bid",
+                              bid: initialBid,
+                            }),
+                          );
+                        }}
+                        className="rounded-lg bg-gradient-to-r from-green-500 to-green-600 px-6 py-3 text-white shadow-lg transition-all hover:from-green-600 hover:to-green-700 hover:shadow-xl"
+                      >
+                        Confirm Selection ($1)
+                      </button>
+                      <button
+                        onClick={() => {
+                          setSelectedPlayer(null);
+                          socket.send(
+                            JSON.stringify({
+                              type: "select_player",
+                              player: null,
+                            }),
+                          );
+                        }}
+                        className="rounded-lg bg-gradient-to-r from-gray-500 to-gray-600 px-6 py-3 text-white shadow-lg transition-all hover:from-gray-600 hover:to-gray-700 hover:shadow-xl"
+                      >
+                        Cancel Selection
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Bidding Controls */}
+              <div className="space-y-4 rounded-lg bg-white/50 p-4 backdrop-blur-sm">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-4">
+                    <label className="text-sm font-medium text-gray-700">
+                      Bid Amount:
+                    </label>
+                    <button
+                      onClick={() => adjustBidAmount(-bidIncrement)}
+                      className="rounded bg-gray-200 px-3 py-1 hover:bg-gray-300"
+                    >
+                      -
+                    </button>
+                    <span className="min-w-[3ch] text-center">
+                      ${bidAmount}
+                    </span>
+                    <button
+                      onClick={() => adjustBidAmount(bidIncrement)}
+                      className="rounded bg-gray-200 px-3 py-1 hover:bg-gray-300"
+                    >
+                      +
+                    </button>
+                    <button
+                      onClick={handleBidSubmit}
+                      disabled={Boolean(
+                        !selectedPlayer ||
+                          (currentBid && bidAmount <= currentBid.amount) ||
+                          isSelling,
+                      )}
+                      className={`rounded px-4 py-2 text-white ${
+                        !selectedPlayer ||
+                        (currentBid && bidAmount <= currentBid.amount) ||
+                        isSelling
+                          ? "cursor-not-allowed bg-gray-400"
+                          : "bg-blue-500 hover:bg-blue-600"
+                      }`}
+                    >
+                      {!selectedPlayer
+                        ? "Select a Player"
+                        : isSelling
+                          ? "Bidding Closed"
+                          : currentBid && bidAmount <= currentBid.amount
+                            ? `Bid must be > $${currentBid.amount}`
+                            : "Place Bid"}
+                    </button>
+                  </div>
+
+                  {currentBid && (
+                    <button
+                      onClick={() => setShowCountdown(true)}
+                      className="rounded bg-yellow-500 px-4 py-2 text-white hover:bg-yellow-600"
+                      disabled={showCountdown}
+                    >
+                      Trigger Countdown
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Bid History */}
+              <div className="rounded-lg bg-white/50 p-4 backdrop-blur-sm">
+                <h3 className="mb-3 text-lg font-semibold text-gray-800">
+                  Bid History
+                </h3>
+                <div className="space-y-2">
+                  {bidHistory.map((bid, index) => (
+                    <div
+                      key={bid.timestamp}
+                      className={`rounded-lg border p-3 ${
+                        bid.isHighestBid
+                          ? "border-green-500 bg-green-50"
+                          : "bg-white"
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="font-medium">{bid.userName}</span>
+                        <span className="text-lg font-bold">${bid.amount}</span>
+                      </div>
+                      <div className="text-sm text-gray-500">
+                        {new Date(bid.timestamp).toLocaleTimeString()}
+                      </div>
+          </div>
+        ))}
+      </div>
+              </div>
+            </div>
+          )}
+
+          {/* Countdown overlay */}
+          {showCountdown && (
+            <Countdown
+              onComplete={handleCountdownComplete}
+              onCancel={handleCountdownCancel}
+            />
           )}
         </div>
       </div>

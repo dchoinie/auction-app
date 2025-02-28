@@ -205,7 +205,7 @@ export default function AdminPage() {
   const handleResetDraft = async () => {
     if (
       !confirm(
-        "Are you sure you want to reset the draft? This will clear all rosters, player assignments, and budgets. This action cannot be undone.",
+        "Are you sure you want to reset the draft? This will clear all rosters, player assignments, budgets, and draft order. This action cannot be undone.",
       )
     ) {
       return;
