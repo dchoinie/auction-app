@@ -11,6 +11,13 @@ import { useNominationStore } from "~/store/nomination";
 import NFLPlayerSelect from "./components/NFLPlayerSelect";
 import Countdown from "./components/Countdown";
 import RosterModal from "./components/RosterModal";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "~/components/ui/dropdown-menu";
+import { MoreVertical } from "lucide-react";
 
 interface NFLPlayer {
   id: number;
@@ -115,8 +122,11 @@ interface Roster {
 export default function DraftRoomPage() {
   const router = useRouter();
   const { user } = useUser();
-  const { currentNominatorDraftOrder, moveToNextNominator } =
-    useNominationStore();
+  const {
+    currentNominatorDraftOrder,
+    moveToNextNominator,
+    setCurrentNominator,
+  } = useNominationStore();
   const [activeUsers, setActiveUsers] = useState<DraftUser[]>([]);
   const [isConnected, setIsConnected] = useState(false);
   const { players, fetchPlayers, updatePlayer, invalidateCache } =
@@ -446,7 +456,52 @@ export default function DraftRoomPage() {
       });
 
       // Move to next nominator after player is drafted
-      moveToNextNominator();
+      // Keep moving to next nominator until we find a team with available spots
+      let nextNominatorFound = false;
+      while (!nextNominatorFound) {
+        moveToNextNominator();
+
+        // Find the current nominator's team
+        const currentNominatorTeam = teams.find(
+          (t) => t.draftOrder === currentNominatorDraftOrder,
+        );
+
+        if (!currentNominatorTeam) {
+          // If no team found, we've gone through all teams
+          break;
+        }
+
+        // Check if the team has any available spots
+        const roster = rosters.find(
+          (r) => r.teamId === currentNominatorTeam.id,
+        );
+        const rosterPositions = [
+          "QB",
+          "RB1",
+          "RB2",
+          "WR1",
+          "WR2",
+          "TE",
+          "Flex1",
+          "Flex2",
+          "Bench1",
+          "Bench2",
+          "Bench3",
+          "Bench4",
+          "Bench5",
+          "Bench6",
+        ];
+
+        const filledSpots = roster
+          ? rosterPositions.filter(
+              (pos) => roster[pos as keyof typeof roster] !== null,
+            ).length
+          : 0;
+
+        if (filledSpots < 14) {
+          nextNominatorFound = true;
+        }
+      }
 
       // Clear the selected player and current bid
       setSelectedPlayer(null);
@@ -476,7 +531,15 @@ export default function DraftRoomPage() {
       setIsAssigningPlayer(false);
       setIsSelling(false);
     }
-  }, [selectedPlayer, currentBid, socket, updatePlayer, moveToNextNominator]);
+  }, [
+    selectedPlayer,
+    currentBid,
+    socket,
+    updatePlayer,
+    moveToNextNominator,
+    teams,
+    rosters,
+  ]);
 
   const handleCountdownCancel = useCallback(() => {
     setShowCountdown(false);
@@ -540,12 +603,39 @@ export default function DraftRoomPage() {
                   return (
                     <div
                       key={team.id}
-                      className={`rounded-lg border p-2 transition-all ${
+                      className={`relative rounded-lg border p-2 transition-all ${
                         isCurrentNominator
                           ? "border-blue-500 bg-blue-50 shadow-md"
                           : ""
                       }`}
                     >
+                      {user?.publicMetadata?.role === "admin" && (
+                        <div className="absolute right-2 top-2">
+                          <DropdownMenu>
+                            <DropdownMenuTrigger className="flex h-8 w-8 items-center justify-center rounded-full hover:bg-gray-100">
+                              <MoreVertical className="h-4 w-4" />
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent>
+                              <DropdownMenuItem
+                                onClick={() => {
+                                  if (team.draftOrder) {
+                                    setCurrentNominator(team.draftOrder);
+                                  }
+                                }}
+                                disabled={!team.draftOrder}
+                              >
+                                Set as Current Nominator
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                onClick={() => moveToNextNominator()}
+                                disabled={!isCurrentNominator}
+                              >
+                                Skip Turn
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </div>
+                      )}
                       <div className="flex items-center gap-2">
                         <div
                           className={`h-2 w-2 rounded-full ${
@@ -995,7 +1085,7 @@ export default function DraftRoomPage() {
               <div className="rounded-lg bg-white/90 px-12 py-8 text-center shadow-lg">
                 <div className="mx-auto mb-4 h-8 w-8 animate-spin rounded-full border-4 border-solid border-blue-500 border-r-transparent"></div>
                 <p className="text-lg font-semibold text-gray-800">
-                  Adding player and adjusting rosters...
+                  Adding player and adjusting budgets...
                 </p>
               </div>
             </div>
