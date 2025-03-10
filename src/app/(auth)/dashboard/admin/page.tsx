@@ -183,8 +183,8 @@ export default function AdminPage() {
       for (let i = shuffledTeams.length - 1; i > 0; i--) {
         const j = Math.floor(Math.random() * (i + 1));
         [shuffledTeams[i], shuffledTeams[j]] = [
-          shuffledTeams[j],
-          shuffledTeams[i],
+          shuffledTeams[j]!,
+          shuffledTeams[i]!,
         ];
       }
 
