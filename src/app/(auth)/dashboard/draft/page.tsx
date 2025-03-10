@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/prefer-nullish-coalescing */
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
@@ -6,6 +7,7 @@ import { useRouter } from "next/navigation";
 import Container from "~/components/Container";
 import { usePartySocket } from "partysocket/react";
 import { useNFLPlayersStore } from "~/store/nfl-players";
+import { useNominationStore } from "~/store/nomination";
 import NFLPlayerSelect from "./components/NFLPlayerSelect";
 import Countdown from "./components/Countdown";
 import RosterModal from "./components/RosterModal";
@@ -74,6 +76,7 @@ interface TeamResponse {
   ownerName: string;
   ownerId: string;
   draftOrder: number | null;
+  totalBudget: number;
 }
 
 interface Team {
@@ -82,11 +85,38 @@ interface Team {
   ownerName: string;
   ownerId: string;
   draftOrder: number | null;
+  totalBudget: number;
+}
+
+interface TeamBudget {
+  teamId: number;
+  spentAmount: number;
+}
+
+interface Roster {
+  id: number;
+  teamId: number;
+  QB: number | null;
+  RB1: number | null;
+  RB2: number | null;
+  WR1: number | null;
+  WR2: number | null;
+  TE: number | null;
+  Flex1: number | null;
+  Flex2: number | null;
+  Bench1: number | null;
+  Bench2: number | null;
+  Bench3: number | null;
+  Bench4: number | null;
+  Bench5: number | null;
+  Bench6: number | null;
 }
 
 export default function DraftRoomPage() {
   const router = useRouter();
   const { user } = useUser();
+  const { currentNominatorDraftOrder, moveToNextNominator } =
+    useNominationStore();
   const [activeUsers, setActiveUsers] = useState<DraftUser[]>([]);
   const [isConnected, setIsConnected] = useState(false);
   const { players, fetchPlayers, updatePlayer, invalidateCache } =
@@ -95,11 +125,18 @@ export default function DraftRoomPage() {
   const [currentBid, setCurrentBid] = useState<DraftBid | null>(null);
   const [bidAmount, setBidAmount] = useState(1);
   const [bidIncrement] = useState(1);
+  const [initialNominationAmount, setInitialNominationAmount] = useState(1);
   const [bidHistory, setBidHistory] = useState<BidHistoryItem[]>([]);
   const [teams, setTeams] = useState<Team[]>([]);
+  const [isLoadingTeams, setIsLoadingTeams] = useState(true);
   const [activeUserIds, setActiveUserIds] = useState<Set<string>>(new Set());
   const [showCountdown, setShowCountdown] = useState(false);
   const [selectedTeam, setSelectedTeam] = useState<Team | null>(null);
+  const [teamBudgets, setTeamBudgets] = useState<Record<number, number>>({});
+  const [rosters, setRosters] = useState<Roster[]>([]);
+  const [isAssigningPlayer, setIsAssigningPlayer] = useState(false);
+  const [isSelling, setIsSelling] = useState(false);
+  const [nominationError, setNominationError] = useState<string | null>(null);
 
   const socket = usePartySocket({
     host: process.env.NEXT_PUBLIC_PARTYKIT_HOST!,
@@ -116,12 +153,10 @@ export default function DraftRoomPage() {
     onMessage(event: MessageEvent) {
       try {
         const data = JSON.parse(event.data as string) as DraftMessage;
-        console.log("Received message:", data);
 
         switch (data.type) {
           case "init_state":
             if (data.state?.currentBid) {
-              console.log("Received initial state:", data.state);
               setSelectedPlayer(data.state.selectedPlayer);
               setCurrentBid(data.state.currentBid);
               setBidAmount(
@@ -161,7 +196,6 @@ export default function DraftRoomPage() {
             break;
           case "new_bid":
             if (data.bid) {
-              console.log("Received new bid:", data.bid);
               setCurrentBid(data.bid);
               setBidAmount(data.bid.amount + 1);
 
@@ -212,20 +246,53 @@ export default function DraftRoomPage() {
   // Fetch teams on mount
   useEffect(() => {
     const fetchTeams = async () => {
-      const res = await fetch("/api/teams");
-      const data = (await res.json()) as TeamResponse[];
-      setTeams(
-        data.map((team) => ({
-          id: team.id,
-          name: team.name,
-          ownerName: team.ownerName,
-          ownerId: team.ownerId,
-          draftOrder: team.draftOrder,
-        })),
-      );
+      setIsLoadingTeams(true);
+      try {
+        const res = await fetch("/api/teams");
+        const data = (await res.json()) as TeamResponse[];
+        setTeams(
+          data.map((team) => ({
+            id: team.id,
+            name: team.name,
+            ownerName: team.ownerName,
+            ownerId: team.ownerId,
+            draftOrder: team.draftOrder,
+            totalBudget: team.totalBudget,
+          })),
+        );
+      } catch (error) {
+        console.error("Error fetching teams:", error);
+      } finally {
+        setIsLoadingTeams(false);
+      }
     };
     void fetchTeams();
   }, []);
+
+  // Add this effect to fetch budgets
+  useEffect(() => {
+    const fetchBudgets = async () => {
+      const res = await fetch("/api/teams/budget");
+      const budgets = (await res.json()) as TeamBudget[];
+      setTeamBudgets(
+        Object.fromEntries(budgets.map((b) => [b.teamId, b.spentAmount])),
+      );
+    };
+    void fetchBudgets();
+  }, [currentBid]); // Refetch when bids are finalized
+
+  useEffect(() => {
+    const fetchRosters = async () => {
+      try {
+        const res = await fetch("/api/rosters");
+        const data = (await res.json()) as Roster[];
+        setRosters(data);
+      } catch (error) {
+        console.error("Error fetching rosters:", error);
+      }
+    };
+    void fetchRosters();
+  }, [currentBid]); // Refetch when players are drafted
 
   const joinDraftRoom = () => {
     if (user) {
@@ -262,7 +329,28 @@ export default function DraftRoomPage() {
 
   const handlePlayerSelect = (playerId: number) => {
     const player = players.find((p) => p.id === playerId);
+    // Only allow selection if it's the user's team's turn to nominate
+    const userTeam = teams.find((team) => team.ownerId === user?.id);
+
+    if (!userTeam) {
+      setNominationError("You must be on a team to nominate players");
+      setTimeout(() => setNominationError(null), 5000);
+      return;
+    }
+
+    if (userTeam.draftOrder !== currentNominatorDraftOrder) {
+      const currentNominator = teams.find(
+        (t) => t.draftOrder === currentNominatorDraftOrder,
+      );
+      setNominationError(
+        `It's ${currentNominator?.name}'s turn to nominate a player`,
+      );
+      setTimeout(() => setNominationError(null), 5000);
+      return;
+    }
+
     if (player && user) {
+      setNominationError(null);
       setSelectedPlayer(player);
       setCurrentBid(null);
       setBidAmount(1);
@@ -293,8 +381,6 @@ export default function DraftRoomPage() {
       teamId: userTeam.id,
     };
 
-    console.log("Sending bid:", newBid);
-
     // Update local state optimistically
     setCurrentBid(newBid);
     setBidHistory((prev) =>
@@ -319,20 +405,24 @@ export default function DraftRoomPage() {
   };
 
   const handleCountdownComplete = useCallback(async () => {
+    // Set isSelling first to prevent any new bids
+    setIsSelling(true);
+    // Then remove the countdown display
     setShowCountdown(false);
 
-    if (!selectedPlayer || !currentBid) return;
+    if (!selectedPlayer || !currentBid) {
+      setIsSelling(false);
+      return;
+    }
+
+    setIsAssigningPlayer(true);
 
     try {
-      const token = await window.Clerk.session.getToken();
-      console.log("Got auth token:", !!token);
-
       // Existing NFL player update
       await fetch(`/api/nfl-players/${selectedPlayer.id}`, {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
           assignedTeamId: currentBid.teamId,
@@ -340,7 +430,7 @@ export default function DraftRoomPage() {
         }),
       });
 
-      // New: Update team's roster
+      // Update team's roster
       await fetch(`/api/rosters/${currentBid.teamId}/add-player`, {
         method: "PATCH",
         headers: {
@@ -358,6 +448,9 @@ export default function DraftRoomPage() {
         draftedAmount: currentBid.amount,
       });
 
+      // Move to next nominator after player is drafted
+      moveToNextNominator();
+
       // Clear the selected player and current bid
       setSelectedPlayer(null);
       setCurrentBid(null);
@@ -374,17 +467,155 @@ export default function DraftRoomPage() {
       );
     } catch (error) {
       console.error("Error finalizing draft:", error);
+    } finally {
+      setIsAssigningPlayer(false);
+      setIsSelling(false);
     }
-  }, [selectedPlayer, currentBid, socket, updatePlayer]);
+  }, [selectedPlayer, currentBid, socket, updatePlayer, moveToNextNominator]);
 
   const handleCountdownCancel = useCallback(() => {
     setShowCountdown(false);
+    setIsSelling(false);
   }, []);
 
   return (
     <Container>
-      <div className="my-12 grid grid-cols-12 gap-4">
-        <div className="col-span-9 rounded-lg border p-4">
+      <div className="my-12 flex flex-col gap-4">
+        {/* Teams section - now horizontal at top */}
+        <div className="rounded-lg border p-4">
+          <h2 className="mb-4 text-lg font-semibold">Teams</h2>
+          {isLoadingTeams ? (
+            <div className="flex flex-col items-center justify-center py-8">
+              <div className="h-8 w-8 animate-spin rounded-full border-4 border-solid border-blue-500 border-r-transparent"></div>
+              <p className="mt-4 text-sm text-gray-500">Loading teams...</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-3 gap-2 lg:grid-cols-4 xl:grid-cols-5">
+              {[...teams]
+                .sort(
+                  (a, b) =>
+                    (a.draftOrder ?? Infinity) - (b.draftOrder ?? Infinity),
+                )
+                .map((team) => {
+                  const remainingBudget =
+                    team.totalBudget - (teamBudgets[team.id] ?? 0);
+                  const roster = rosters.find((r) => r.teamId === team.id);
+
+                  // Count filled spots by checking each roster position
+                  const rosterPositions = [
+                    "QB",
+                    "RB1",
+                    "RB2",
+                    "WR1",
+                    "WR2",
+                    "TE",
+                    "Flex1",
+                    "Flex2",
+                    "Bench1",
+                    "Bench2",
+                    "Bench3",
+                    "Bench4",
+                    "Bench5",
+                    "Bench6",
+                  ];
+
+                  const filledSpots = roster
+                    ? rosterPositions.filter(
+                        (pos) => roster[pos as keyof typeof roster] !== null,
+                      ).length
+                    : 0;
+
+                  const totalRosterSpots = 14;
+                  const remainingSpots = totalRosterSpots - filledSpots;
+                  const reserveAmount = remainingSpots - 1;
+                  const maxBid = Math.max(0, remainingBudget - reserveAmount);
+                  const isCurrentNominator =
+                    team.draftOrder === currentNominatorDraftOrder;
+
+                  return (
+                    <div
+                      key={team.id}
+                      className={`rounded-lg border p-2 transition-all ${
+                        isCurrentNominator
+                          ? "border-blue-500 bg-blue-50 shadow-md"
+                          : ""
+                      }`}
+                    >
+                      <div className="flex items-center gap-2">
+                        <div
+                          className={`h-2 w-2 rounded-full ${
+                            activeUserIds.has(team.ownerId)
+                              ? "bg-green-500"
+                              : "bg-gray-300"
+                          }`}
+                        />
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2">
+                            {team.draftOrder && (
+                              <span className="text-sm font-semibold text-blue-600">
+                                #{team.draftOrder}
+                              </span>
+                            )}
+                            <span className="font-medium">{team.name}</span>
+                            {team.ownerId === user?.id && (
+                              <span className="text-xs text-gray-500">
+                                (You)
+                              </span>
+                            )}
+                            {isCurrentNominator && (
+                              <span className="ml-1 rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-800">
+                                Nominating
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-xs text-gray-600">
+                            {team.ownerName}
+                          </p>
+                          <div className="mt-1 flex items-center justify-between">
+                            <div className="text-sm">
+                              <span className="font-medium text-green-600">
+                                ${remainingBudget}
+                              </span>
+                              <span className="text-gray-500"> remaining</span>
+                            </div>
+                            <div className="text-sm">
+                              <span className="font-medium text-blue-600">
+                                {filledSpots}
+                              </span>
+                              <span className="text-gray-500"> filled</span>
+                            </div>
+                          </div>
+                          <div className="mt-1 flex items-center justify-between">
+                            <div className="text-sm">
+                              <span className="font-medium text-amber-600">
+                                ${maxBid > 0 ? maxBid : 0}
+                              </span>
+                              <span className="text-gray-500"> max bid</span>
+                            </div>
+                            <div className="text-sm">
+                              <span className="font-medium text-blue-600">
+                                {remainingSpots}
+                              </span>
+                              <span className="text-gray-500"> remaining</span>
+                            </div>
+                          </div>
+                          <button
+                            onClick={() => setSelectedTeam(team)}
+                            className="mt-2 text-sm text-blue-600 hover:text-blue-800"
+                          >
+                            View Team
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+            </div>
+          )}
+        </div>
+
+        {/* Main draft room content */}
+        <div className="rounded-lg border p-4">
           <div className="flex items-center justify-between">
             <h1 className="text-2xl font-bold">Draft Room</h1>
             {isConnected && (
@@ -407,159 +638,318 @@ export default function DraftRoomPage() {
             <p className="mt-4 text-green-600">Connected to draft room</p>
           )}
 
+          {/* Nomination Error Alert */}
+          {nominationError && (
+            <div className="mt-4 rounded-lg border border-red-500 bg-red-50 p-3 text-red-700">
+              <p className="font-medium">{nominationError}</p>
+            </div>
+          )}
+
           {/* Replace the old dropdown with the new component */}
           <NFLPlayerSelect
             selectedPlayerId={selectedPlayer?.id}
             onPlayerSelect={handlePlayerSelect}
+            isDisabled={
+              !user ||
+              !teams.find((team) => team.ownerId === user.id)?.draftOrder ||
+              teams.find((team) => team.ownerId === user.id)?.draftOrder !==
+                currentNominatorDraftOrder
+            }
+            currentNominator={
+              teams.find(
+                (team) => team.draftOrder === currentNominatorDraftOrder,
+              )?.name
+            }
           />
 
           {/* Selected Player and Current Bid */}
           {selectedPlayer && (
-            <div className="mb-6 rounded-lg border-2 border-blue-500 bg-blue-50 p-6 shadow-md">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h2 className="text-2xl font-bold text-blue-800">
-                    {selectedPlayer.firstName} {selectedPlayer.lastName}
-                  </h2>
-                  <p className="text-lg text-blue-600">
-                    {selectedPlayer.position} - {selectedPlayer.nflTeamName}
-                  </p>
+            <div className="mb-6 space-y-6 overflow-hidden rounded-xl border-2 border-blue-500 bg-gradient-to-br from-blue-50 via-white to-blue-50 p-8 shadow-2xl transition-all">
+              <div className="relative">
+                {/* Sparkle effects */}
+                <div className="absolute -left-4 -top-4 h-12 w-12 animate-pulse rounded-full bg-blue-200 opacity-50 blur-xl"></div>
+                <div className="absolute -bottom-4 -right-4 h-12 w-12 animate-pulse rounded-full bg-blue-200 opacity-50 blur-xl"></div>
+
+                <div className="flex items-center justify-between">
+                  <div className="relative">
+                    <div className="animate-pulse-slow absolute -inset-1 rounded-lg bg-gradient-to-r from-blue-600 via-sky-400 to-blue-600 opacity-20 blur"></div>
+                    <div className="relative">
+                      <h2 className="bg-gradient-to-r from-blue-700 via-blue-800 to-blue-900 bg-clip-text text-4xl font-bold text-transparent">
+                        {selectedPlayer.firstName} {selectedPlayer.lastName}
+                      </h2>
+                      <div className="mt-2 flex items-center gap-3">
+                        <span className="rounded-full bg-blue-100 px-3 py-1 text-lg font-semibold text-blue-800">
+                          {selectedPlayer.position}
+                        </span>
+                        <span className="text-lg text-blue-600">
+                          {selectedPlayer.nflTeamName}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {currentBid ? (
+                    <div className="relative">
+                      <div className="animate-pulse-slow absolute -inset-1 rounded-lg bg-gradient-to-r from-green-600 via-emerald-400 to-green-600 opacity-20 blur"></div>
+                      <div className="relative rounded-xl border-2 border-green-500 bg-gradient-to-b from-green-50 to-white p-6 shadow-lg">
+                        <div className="text-sm font-medium text-green-800">
+                          Current Leader
+                        </div>
+                        <div className="bg-gradient-to-r from-green-600 to-green-800 bg-clip-text text-3xl font-bold text-transparent">
+                          ${currentBid.amount}
+                        </div>
+                        <div className="text-sm font-medium text-green-600">
+                          by {currentBid.userName}
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex gap-2">
+                      <div className="flex items-center gap-4">
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() =>
+                              setInitialNominationAmount((prev) =>
+                                Math.max(1, prev - bidIncrement),
+                              )
+                            }
+                            className="rounded bg-gray-200 px-3 py-1 hover:bg-gray-300"
+                          >
+                            -
+                          </button>
+                          <span className="min-w-[3ch] text-center">
+                            ${initialNominationAmount}
+                          </span>
+                          <button
+                            onClick={() => {
+                              const userTeam = teams.find(
+                                (team) => team.ownerId === user?.id,
+                              );
+                              if (!userTeam) return;
+
+                              const remainingBudget =
+                                userTeam.totalBudget -
+                                (teamBudgets[userTeam.id] ?? 0);
+                              const roster = rosters.find(
+                                (r) => r.teamId === userTeam.id,
+                              );
+                              const rosterPositions = [
+                                "QB",
+                                "RB1",
+                                "RB2",
+                                "WR1",
+                                "WR2",
+                                "TE",
+                                "Flex1",
+                                "Flex2",
+                                "Bench1",
+                                "Bench2",
+                                "Bench3",
+                                "Bench4",
+                                "Bench5",
+                                "Bench6",
+                              ];
+                              const filledSpots = roster
+                                ? rosterPositions.filter(
+                                    (pos) =>
+                                      roster[pos as keyof typeof roster] !==
+                                      null,
+                                  ).length
+                                : 0;
+                              const totalRosterSpots = 14;
+                              const remainingSpots =
+                                totalRosterSpots - filledSpots;
+                              const reserveAmount = remainingSpots - 1;
+                              const maxBid = Math.max(
+                                0,
+                                remainingBudget - reserveAmount,
+                              );
+
+                              if (initialNominationAmount < maxBid) {
+                                setInitialNominationAmount(
+                                  (prev) => prev + bidIncrement,
+                                );
+                              }
+                            }}
+                            disabled={(() => {
+                              const userTeam = teams.find(
+                                (team) => team.ownerId === user?.id,
+                              );
+                              if (!userTeam) return true;
+
+                              const remainingBudget =
+                                userTeam.totalBudget -
+                                (teamBudgets[userTeam.id] ?? 0);
+                              const roster = rosters.find(
+                                (r) => r.teamId === userTeam.id,
+                              );
+                              const rosterPositions = [
+                                "QB",
+                                "RB1",
+                                "RB2",
+                                "WR1",
+                                "WR2",
+                                "TE",
+                                "Flex1",
+                                "Flex2",
+                                "Bench1",
+                                "Bench2",
+                                "Bench3",
+                                "Bench4",
+                                "Bench5",
+                                "Bench6",
+                              ];
+                              const filledSpots = roster
+                                ? rosterPositions.filter(
+                                    (pos) =>
+                                      roster[pos as keyof typeof roster] !==
+                                      null,
+                                  ).length
+                                : 0;
+                              const totalRosterSpots = 14;
+                              const remainingSpots =
+                                totalRosterSpots - filledSpots;
+                              const reserveAmount = remainingSpots - 1;
+                              const maxBid = Math.max(
+                                0,
+                                remainingBudget - reserveAmount,
+                              );
+
+                              return initialNominationAmount >= maxBid;
+                            })()}
+                            className="rounded bg-gray-200 px-3 py-1 hover:bg-gray-300 disabled:bg-gray-100 disabled:text-gray-400"
+                          >
+                            +
+                          </button>
+                        </div>
+                        <button
+                          onClick={() => {
+                            if (!user) return;
+
+                            // Find the user's team
+                            const userTeam = teams.find(
+                              (team) => team.ownerId === user.id,
+                            );
+                            if (!userTeam) return;
+
+                            // Create initial bid
+                            const initialBid: DraftBid = {
+                              userId: user.id,
+                              userName: `${user.firstName} ${user.lastName}`,
+                              amount: initialNominationAmount,
+                              timestamp: Date.now(),
+                              teamId: userTeam.id,
+                            };
+
+                            // Update local state
+                            setCurrentBid(initialBid);
+                            setBidAmount(initialNominationAmount + 1); // Set next bid to current + 1
+                            setBidHistory((prev) =>
+                              [
+                                { ...initialBid, isHighestBid: true },
+                                ...prev.map((bid) => ({
+                                  ...bid,
+                                  isHighestBid: false,
+                                })),
+                              ].slice(0, 10),
+                            );
+
+                            // Send to server
+                            socket.send(
+                              JSON.stringify({
+                                type: "new_bid",
+                                bid: initialBid,
+                              }),
+                            );
+                          }}
+                          className="rounded-lg bg-gradient-to-r from-green-500 to-green-600 px-6 py-3 text-white shadow-lg transition-all hover:from-green-600 hover:to-green-700 hover:shadow-xl"
+                        >
+                          Confirm Selection
+                        </button>
+                        <button
+                          onClick={() => {
+                            setSelectedPlayer(null);
+                            socket.send(
+                              JSON.stringify({
+                                type: "select_player",
+                                player: null,
+                              }),
+                            );
+                          }}
+                          className="rounded-lg bg-gradient-to-r from-gray-500 to-gray-600 px-6 py-3 text-white shadow-lg transition-all hover:from-gray-600 hover:to-gray-700 hover:shadow-xl"
+                        >
+                          Cancel Selection
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
-
-                {currentBid ? (
-                  <div className="rounded-lg border-2 border-green-500 bg-green-100 p-4">
-                    <div className="text-sm font-medium text-green-800">
-                      Current Leader
-                    </div>
-                    <div className="text-2xl font-bold text-green-700">
-                      ${currentBid.amount}
-                    </div>
-                    <div className="text-sm text-green-600">
-                      by {currentBid.userName}
-                    </div>
-                  </div>
-                ) : (
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => {
-                        if (!user) return;
-
-                        // Find the user's team
-                        const userTeam = teams.find(
-                          (team) => team.ownerId === user.id,
-                        );
-                        if (!userTeam) return;
-
-                        // Create initial bid
-                        const initialBid: DraftBid = {
-                          userId: user.id,
-                          userName: `${user.firstName} ${user.lastName}`,
-                          amount: 1,
-                          timestamp: Date.now(),
-                          teamId: userTeam.id,
-                        };
-
-                        // Update local state
-                        setCurrentBid(initialBid);
-                        setBidAmount(2); // Set next bid to $2
-                        setBidHistory((prev) =>
-                          [
-                            { ...initialBid, isHighestBid: true },
-                            ...prev.map((bid) => ({
-                              ...bid,
-                              isHighestBid: false,
-                            })),
-                          ].slice(0, 10),
-                        );
-
-                        // Send to server
-                        socket.send(
-                          JSON.stringify({
-                            type: "new_bid",
-                            bid: initialBid,
-                          }),
-                        );
-                      }}
-                      className="rounded bg-green-500 px-4 py-2 text-white hover:bg-green-600"
-                    >
-                      Confirm Selection ($1)
-                    </button>
-                    <button
-                      onClick={() => {
-                        setSelectedPlayer(null);
-                        socket.send(
-                          JSON.stringify({
-                            type: "select_player",
-                            player: null,
-                          }),
-                        );
-                      }}
-                      className="rounded bg-gray-500 px-4 py-2 text-white hover:bg-gray-600"
-                    >
-                      Cancel Selection
-                    </button>
-                  </div>
-                )}
               </div>
-            </div>
-          )}
 
-          {/* Simplified Bidding Controls */}
-          {selectedPlayer && (
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                  <label className="text-sm font-medium text-gray-700">
-                    Bid Amount:
-                  </label>
-                  <button
-                    onClick={() => adjustBidAmount(-bidIncrement)}
-                    className="rounded bg-gray-200 px-3 py-1"
-                  >
-                    -
-                  </button>
-                  <span className="min-w-[3ch] text-center">${bidAmount}</span>
-                  <button
-                    onClick={() => adjustBidAmount(bidIncrement)}
-                    className="rounded bg-gray-200 px-3 py-1"
-                  >
-                    +
-                  </button>
-                  <button
-                    onClick={handleBidSubmit}
-                    disabled={Boolean(
-                      !selectedPlayer ||
-                        (currentBid && bidAmount <= currentBid.amount),
-                    )}
-                    className={`rounded px-4 py-2 text-white ${
-                      !selectedPlayer ||
-                      (currentBid && bidAmount <= currentBid.amount)
-                        ? "cursor-not-allowed bg-gray-400"
-                        : "bg-blue-500 hover:bg-blue-600"
-                    }`}
-                  >
-                    {!selectedPlayer
-                      ? "Select a Player"
-                      : currentBid && bidAmount <= currentBid.amount
-                        ? `Bid must be > $${currentBid.amount}`
-                        : "Place Bid"}
-                  </button>
+              {/* Bidding Controls */}
+              <div className="space-y-4 rounded-lg bg-white/50 p-4 backdrop-blur-sm">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-4">
+                    <label className="text-sm font-medium text-gray-700">
+                      Bid Amount:
+                    </label>
+                    <button
+                      onClick={() => adjustBidAmount(-bidIncrement)}
+                      className="rounded bg-gray-200 px-3 py-1 hover:bg-gray-300"
+                    >
+                      -
+                    </button>
+                    <span className="min-w-[3ch] text-center">
+                      ${bidAmount}
+                    </span>
+                    <button
+                      onClick={() => adjustBidAmount(bidIncrement)}
+                      className="rounded bg-gray-200 px-3 py-1 hover:bg-gray-300"
+                    >
+                      +
+                    </button>
+                    <button
+                      onClick={handleBidSubmit}
+                      disabled={Boolean(
+                        !selectedPlayer ||
+                          (currentBid && bidAmount <= currentBid.amount) ||
+                          isSelling,
+                      )}
+                      className={`rounded px-4 py-2 text-white ${
+                        !selectedPlayer ||
+                        (currentBid && bidAmount <= currentBid.amount) ||
+                        isSelling
+                          ? "cursor-not-allowed bg-gray-400"
+                          : "bg-blue-500 hover:bg-blue-600"
+                      }`}
+                    >
+                      {!selectedPlayer
+                        ? "Select a Player"
+                        : isSelling
+                          ? "Bidding Closed"
+                          : currentBid && bidAmount <= currentBid.amount
+                            ? `Bid must be > $${currentBid.amount}`
+                            : "Place Bid"}
+                    </button>
+                  </div>
+
+                  {currentBid && (
+                    <button
+                      onClick={() => setShowCountdown(true)}
+                      className="rounded bg-yellow-500 px-4 py-2 text-white hover:bg-yellow-600"
+                      disabled={showCountdown}
+                    >
+                      Trigger Countdown
+                    </button>
+                  )}
                 </div>
-
-                {currentBid && (
-                  <button
-                    onClick={() => setShowCountdown(true)}
-                    className="rounded bg-yellow-500 px-4 py-2 text-white hover:bg-yellow-600"
-                    disabled={showCountdown}
-                  >
-                    Trigger Countdown
-                  </button>
-                )}
               </div>
 
               {/* Bid History */}
-              <div className="mt-6">
-                <h3 className="mb-3 text-lg font-semibold">Bid History</h3>
+              <div className="rounded-lg bg-white/50 p-4 backdrop-blur-sm">
+                <h3 className="mb-3 text-lg font-semibold text-gray-800">
+                  Bid History
+                </h3>
                 <div className="space-y-2">
                   {bidHistory.map((bid, index) => (
                     <div
@@ -567,7 +957,7 @@ export default function DraftRoomPage() {
                       className={`rounded-lg border p-3 ${
                         bid.isHighestBid
                           ? "border-green-500 bg-green-50"
-                          : "bg-gray-50"
+                          : "bg-white"
                       }`}
                     >
                       <div className="flex items-center justify-between">
@@ -591,56 +981,6 @@ export default function DraftRoomPage() {
               onCancel={handleCountdownCancel}
             />
           )}
-        </div>
-
-        {/* Teams sidebar */}
-        <div className="col-span-3 rounded-lg border p-4">
-          <h2 className="mb-4 text-lg font-semibold">Teams</h2>
-          <div className="space-y-2">
-            {[...teams]
-              .sort(
-                (a, b) =>
-                  (a.draftOrder ?? Infinity) - (b.draftOrder ?? Infinity),
-              )
-              .map((team) => (
-                <div
-                  key={team.id}
-                  className="flex items-center justify-between rounded-lg border p-2"
-                >
-                  <div className="flex items-center gap-2">
-                    <div
-                      className={`h-2 w-2 rounded-full ${
-                        activeUserIds.has(team.ownerId)
-                          ? "bg-green-500"
-                          : "bg-gray-300"
-                      }`}
-                    />
-                    <div>
-                      <div className="flex items-center gap-2">
-                        {team.draftOrder && (
-                          <span className="text-sm font-semibold text-blue-600">
-                            #{team.draftOrder}
-                          </span>
-                        )}
-                        <span className="font-medium">{team.name}</span>
-                      </div>
-                      <p className="text-xs text-gray-600">{team.ownerName}</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    {team.ownerId === user?.id && (
-                      <span className="text-xs text-gray-500">(You)</span>
-                    )}
-                    <button
-                      onClick={() => setSelectedTeam(team)}
-                      className="text-sm text-blue-600 hover:text-blue-800"
-                    >
-                      View Team
-                    </button>
-                  </div>
-                </div>
-              ))}
-          </div>
         </div>
       </div>
 

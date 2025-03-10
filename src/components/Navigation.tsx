@@ -13,10 +13,6 @@ const navItems: NavItemType[] = [
     href: "/dashboard",
   },
   {
-    label: "Players",
-    href: "/dashboard/players",
-  },
-  {
     label: "Keepers",
     href: "/dashboard/keepers",
   },
