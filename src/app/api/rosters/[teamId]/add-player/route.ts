@@ -3,13 +3,34 @@ import { rosters } from "~/server/db/schema";
 import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 
+interface AddPlayerRequest {
+  playerId: number;
+  position: string;
+}
+
+type RosterField =
+  | "QB"
+  | "RB1"
+  | "RB2"
+  | "WR1"
+  | "WR2"
+  | "TE"
+  | "Flex1"
+  | "Flex2"
+  | "Bench1"
+  | "Bench2"
+  | "Bench3"
+  | "Bench4"
+  | "Bench5"
+  | "Bench6";
+
 export async function PATCH(
   request: Request,
   { params }: { params: { teamId: string } },
 ) {
   try {
     const teamId = parseInt(params.teamId);
-    const { playerId, position } = await request.json();
+    const { playerId, position } = (await request.json()) as AddPlayerRequest;
 
     const [roster] = await db
       .select()
@@ -21,7 +42,7 @@ export async function PATCH(
     }
 
     // Find first available spot based on position
-    let updateField = null;
+    let updateField: RosterField | null = null;
 
     switch (position) {
       case "QB":
@@ -48,7 +69,7 @@ export async function PATCH(
 
     // If no position spot, try bench spots
     if (!updateField) {
-      const benchSpots = [
+      const benchSpots: RosterField[] = [
         "Bench1",
         "Bench2",
         "Bench3",

@@ -71,8 +71,21 @@ export async function POST(request: Request) {
 
     // Create empty roster for the team
     await db.insert(rosters).values({
-      teamId: newTeam[0].id,
-      players: [], // Initialize with empty array
+      teamId: newTeam[0]!.id,
+      QB: null,
+      RB1: null,
+      RB2: null,
+      WR1: null,
+      WR2: null,
+      TE: null,
+      Flex1: null,
+      Flex2: null,
+      Bench1: null,
+      Bench2: null,
+      Bench3: null,
+      Bench4: null,
+      Bench5: null,
+      Bench6: null,
     });
 
     return NextResponse.json(newTeam[0]);
