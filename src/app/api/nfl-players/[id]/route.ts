@@ -7,39 +7,39 @@ import { NextResponse } from "next/server";
 interface Roster {
   id: number;
   teamId: number;
-  qb: number | null;
-  rb1: number | null;
-  rb2: number | null;
-  wr1: number | null;
-  wr2: number | null;
-  te: number | null;
-  flex1: number | null;
-  flex2: number | null;
-  bench1: number | null;
-  bench2: number | null;
-  bench3: number | null;
-  bench4: number | null;
-  bench5: number | null;
-  bench6: number | null;
-  updatedAt: Date;
+  QB: number | null;
+  RB1: number | null;
+  RB2: number | null;
+  WR1: number | null;
+  WR2: number | null;
+  TE: number | null;
+  Flex1: number | null;
+  Flex2: number | null;
+  Bench1: number | null;
+  Bench2: number | null;
+  Bench3: number | null;
+  Bench4: number | null;
+  Bench5: number | null;
+  Bench6: number | null;
+  updatedAt: Date | null;
   createdAt: Date;
 }
 
 type RosterPosition =
-  | "qb"
-  | "rb1"
-  | "rb2"
-  | "wr1"
-  | "wr2"
-  | "te"
-  | "flex1"
-  | "flex2"
-  | "bench1"
-  | "bench2"
-  | "bench3"
-  | "bench4"
-  | "bench5"
-  | "bench6";
+  | "QB"
+  | "RB1"
+  | "RB2"
+  | "WR1"
+  | "WR2"
+  | "TE"
+  | "Flex1"
+  | "Flex2"
+  | "Bench1"
+  | "Bench2"
+  | "Bench3"
+  | "Bench4"
+  | "Bench5"
+  | "Bench6";
 
 interface UpdatePlayerRequest {
   assignedTeamId: number;
@@ -51,40 +51,40 @@ async function findAvailableRosterSpot(
   position: string,
 ): Promise<RosterPosition | null> {
   const benchSpots: RosterPosition[] = [
-    "bench1",
-    "bench2",
-    "bench3",
-    "bench4",
-    "bench5",
-    "bench6",
+    "Bench1",
+    "Bench2",
+    "Bench3",
+    "Bench4",
+    "Bench5",
+    "Bench6",
   ];
 
   switch (position) {
     case "QB":
-      return !roster.qb ? "qb" : null;
+      return !roster.QB ? "QB" : null;
 
     case "RB":
-      if (!roster.rb1) return "rb1";
-      if (!roster.rb2) return "rb2";
-      if (!roster.flex1) return "flex1";
-      if (!roster.flex2) return "flex2";
-      return benchSpots.find((spot) => !roster[spot]) || null;
+      if (!roster.RB1) return "RB1";
+      if (!roster.RB2) return "RB2";
+      if (!roster.Flex1) return "Flex1";
+      if (!roster.Flex2) return "Flex2";
+      return benchSpots.find((spot) => !roster[spot]) ?? null;
 
     case "WR":
-      if (!roster.wr1) return "wr1";
-      if (!roster.wr2) return "wr2";
-      if (!roster.flex1) return "flex1";
-      if (!roster.flex2) return "flex2";
-      return benchSpots.find((spot) => !roster[spot]) || null;
+      if (!roster.WR1) return "WR1";
+      if (!roster.WR2) return "WR2";
+      if (!roster.Flex1) return "Flex1";
+      if (!roster.Flex2) return "Flex2";
+      return benchSpots.find((spot) => !roster[spot]) ?? null;
 
     case "TE":
-      if (!roster.te) return "te";
-      if (!roster.flex1) return "flex1";
-      if (!roster.flex2) return "flex2";
-      return benchSpots.find((spot) => !roster[spot]) || null;
+      if (!roster.TE) return "TE";
+      if (!roster.Flex1) return "Flex1";
+      if (!roster.Flex2) return "Flex2";
+      return benchSpots.find((spot) => !roster[spot]) ?? null;
 
     default:
-      return benchSpots.find((spot) => !roster[spot]) || null;
+      return benchSpots.find((spot) => !roster[spot]) ?? null;
   }
 }
 
@@ -112,6 +112,10 @@ export async function PATCH(
       })
       .where(eq(nflPlayers.id, playerId))
       .returning();
+
+    if (!updatedPlayer) {
+      throw new Error("Player not found");
+    }
 
     // Get the team's roster
     const [roster] = await db
