@@ -355,6 +355,7 @@ export default function DraftRoomPage() {
       setSelectedPlayer(player);
       setCurrentBid(null);
       setBidAmount(1);
+      setInitialNominationAmount(1);
       socket.send(
         JSON.stringify({
           type: "select_player",
@@ -419,7 +420,7 @@ export default function DraftRoomPage() {
     setIsAssigningPlayer(true);
 
     try {
-      // Update NFL player first
+      // Update NFL player and roster in one call
       const playerResponse = await fetch(
         `/api/nfl-players/${selectedPlayer.id}`,
         {
@@ -436,25 +437,6 @@ export default function DraftRoomPage() {
 
       if (!playerResponse.ok) {
         throw new Error("Failed to update player");
-      }
-
-      // Then update team's roster
-      const rosterResponse = await fetch(
-        `/api/rosters/${currentBid.teamId}/add-player`,
-        {
-          method: "PATCH",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            playerId: selectedPlayer.id,
-            position: selectedPlayer.position,
-          }),
-        },
-      );
-
-      if (!rosterResponse.ok) {
-        throw new Error("Failed to update roster");
       }
 
       // Update the player in the store
@@ -479,6 +461,13 @@ export default function DraftRoomPage() {
           player: selectedPlayer,
           bid: currentBid,
         }),
+      );
+
+      // Refresh team budgets to update the UI
+      const budgetsResponse = await fetch("/api/teams/budget");
+      const budgets = (await budgetsResponse.json()) as TeamBudget[];
+      setTeamBudgets(
+        Object.fromEntries(budgets.map((b) => [b.teamId, b.spentAmount])),
       );
     } catch (error) {
       console.error("Error finalizing draft:", error);
