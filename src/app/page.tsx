@@ -2,57 +2,144 @@
 
 import { SignInButton, SignUpButton, useUser } from "@clerk/nextjs";
 import { redirect } from "next/navigation";
+import Image from "next/image";
+
+type Member = {
+  name: string;
+  image: string;
+};
+
+const members: Member[] = [
+  {
+    name: "Alex Krenik",
+    image: "/alex.jpg",
+  },
+  {
+    name: "Brian Battista",
+    image: "/battista.jpg",
+  },
+  {
+    name: "Jon Bjelde",
+    image: "/bjelde.jpg",
+  },
+  {
+    name: "Dan Choiniere",
+    image: "/dan.jpg",
+  },
+  {
+    name: "Gene Richtsmeier",
+    image: "/gene.jpg",
+  },
+  {
+    name: "",
+    image: "",
+  },
+  {
+    name: "",
+    image: "",
+  },
+  {
+    name: "Kyle Olson",
+    image: "/kyle.jpg",
+  },
+  {
+    name: "Mike Kern",
+    image: "/mike.jpg",
+  },
+  {
+    name: "Derek Rux",
+    image: "/rux.jpg",
+  },
+  {
+    name: "Andrew Schwanke",
+    image: "/schwanke.jpg",
+  },
+  {
+    name: "Matt Taffe",
+    image: "/taffe.jpg",
+  },
+];
+
+function MemberBubble({ member }: { member: Member }) {
+  return (
+    <div className="flex flex-col items-center">
+      <div className="relative h-48 w-48">
+        {member.image && (
+          <Image
+            src={member.image}
+            alt={member.name}
+            fill
+            sizes="192px"
+            className="rounded-full object-cover shadow-xl"
+            onError={(e) => {
+              console.error(`Error loading image for ${member.name}:`, e);
+            }}
+          />
+        )}
+      </div>
+      {member.name && (
+        <p className="mt-2 text-center text-sm font-semibold text-gray-800">
+          {member.name}
+        </p>
+      )}
+    </div>
+  );
+}
+
+function MemberBackground() {
+  return (
+    <div className="fixed inset-0 -z-10 overflow-hidden">
+      <div className="grid h-screen w-screen grid-cols-4 grid-rows-3 gap-8 p-8">
+        {members.map((member) => (
+          <div key={member.name} className="flex items-center justify-center">
+            <div className="opacity-50">
+              <MemberBubble member={member} />
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 export default function LandingPage() {
   const { user } = useUser();
+  const currentYear = new Date().getFullYear();
 
   if (user) {
     redirect("/dashboard");
   }
 
   return (
-    <main className="container mx-auto flex min-h-screen flex-col items-center justify-center p-4 text-center">
-      <div className="max-w-2xl">
-        <h1 className="mb-6 text-5xl font-bold text-gray-900">
-          True Fliers Fantasy Football
-        </h1>
-        <p className="mb-8 text-xl text-gray-600">
-          Join the ultimate fantasy football auction experience. Draft your
-          dream team, manage your budget, and compete with fellow managers.
-        </p>
-
-        <div className="flex justify-center gap-4">
-          <SignInButton mode="modal">
-            <button className="rounded bg-blue-500 px-6 py-3 font-semibold text-white transition hover:bg-blue-600">
-              Sign In
-            </button>
-          </SignInButton>
-
-          <SignUpButton mode="modal">
-            <button className="rounded border-2 border-blue-500 px-6 py-3 font-semibold text-blue-500 transition hover:bg-blue-50">
-              Create Account
-            </button>
-          </SignUpButton>
-        </div>
-
-        <div className="mt-12 grid grid-cols-1 gap-6 sm:grid-cols-3">
-          <div className="rounded-lg border p-4">
-            <h3 className="mb-2 font-semibold">Live Auction Draft</h3>
-            <p className="text-sm text-gray-600">
-              Real-time bidding with live updates
-            </p>
+    <main className="relative min-h-screen bg-transparent">
+      <MemberBackground />
+      <div className="container mx-auto flex min-h-screen flex-col items-center justify-center p-4">
+        <div className="max-w-4xl space-y-12">
+          <div className="text-center">
+            <h1 className="mb-3 text-5xl font-bold tracking-tight text-gray-900">
+              True Fliers Fantasy Football
+            </h1>
+            <p className="text-xl text-gray-600">{currentYear} Auction Draft</p>
           </div>
-          <div className="rounded-lg border p-4">
-            <h3 className="mb-2 font-semibold">Budget Management</h3>
-            <p className="text-sm text-gray-600">
-              Strategic fund allocation for your roster
-            </p>
-          </div>
-          <div className="rounded-lg border p-4">
-            <h3 className="mb-2 font-semibold">Player Analytics</h3>
-            <p className="text-sm text-gray-600">
-              In-depth stats and predictions
-            </p>
+
+          <p className="text-center text-lg text-gray-600">
+            Welcome to the official auction draft platform for the True Fliers
+            Fantasy Football League. Join us for an exciting live auction where
+            you&apos;ll build your championship roster.
+          </p>
+
+          <div className="flex justify-center gap-4">
+            <SignInButton mode="modal">
+              <button className="rounded-full bg-black px-8 py-3 text-sm font-medium text-white transition hover:bg-gray-800">
+                Sign In
+              </button>
+            </SignInButton>
+
+            <SignUpButton mode="modal">
+              <button className="rounded-full border border-gray-300 px-8 py-3 text-sm font-medium text-gray-900 transition hover:bg-gray-50">
+                Create Account
+              </button>
+            </SignUpButton>
           </div>
         </div>
       </div>
