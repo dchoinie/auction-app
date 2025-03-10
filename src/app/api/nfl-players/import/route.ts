@@ -4,6 +4,15 @@ import { nflPlayers } from "~/server/db/schema";
 import { auth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 
+type ImportRequest = {
+  players: {
+    firstName: string;
+    lastName: string;
+    position: "QB" | "RB" | "WR" | "TE";
+    nflTeamName: string;
+  }[];
+};
+
 export async function POST(request: Request) {
   try {
     const { userId } = await auth();
@@ -11,13 +20,8 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const data = await request.json();
-    const players = data.players as {
-      firstName: string;
-      lastName: string;
-      position: "QB" | "RB" | "WR" | "TE";
-      nflTeamName: string;
-    }[];
+    const data = (await request.json()) as ImportRequest;
+    const players = data.players;
 
     const insertedPlayers = await db
       .insert(nflPlayers)
