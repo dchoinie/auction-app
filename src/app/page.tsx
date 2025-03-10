@@ -92,7 +92,7 @@ function MemberBackground() {
       <div className="grid h-screen w-screen grid-cols-4 grid-rows-3 gap-8 p-8">
         {members.map((member) => (
           <div key={member.name} className="flex items-center justify-center">
-            <div className="opacity-50">
+            <div className="opacity-75">
               <MemberBubble member={member} />
             </div>
           </div>
@@ -114,32 +114,25 @@ export default function LandingPage() {
     <main className="relative min-h-screen bg-transparent">
       <MemberBackground />
       <div className="container mx-auto flex min-h-screen flex-col items-center justify-center p-4">
-        <div className="max-w-4xl space-y-12">
+        <div className="max-w-4xl space-y-3">
           <div className="text-center">
-            <h1 className="mb-3 text-5xl font-bold tracking-tight text-gray-900">
+            <h1 className="text-5xl font-bold tracking-tight text-gray-900">
               True Fliers Fantasy Football
             </h1>
             <p className="text-xl text-gray-600">{currentYear} Auction Draft</p>
           </div>
-
-          <p className="text-center text-lg text-gray-600">
-            Welcome to the official auction draft platform for the True Fliers
-            Fantasy Football League. Join us for an exciting live auction where
-            you&apos;ll build your championship roster.
+          <p className="text-center text-sm text-gray-500">
+            This is a private platform for True Fliers league members only. You
+            need an invitation to join. If you&apos;re a league member but
+            haven&apos;t received an invitation, please contact the league
+            administrator.
           </p>
-
           <div className="flex justify-center gap-4">
             <SignInButton mode="modal">
               <button className="rounded-full bg-black px-8 py-3 text-sm font-medium text-white transition hover:bg-gray-800">
                 Sign In
               </button>
             </SignInButton>
-
-            <SignUpButton mode="modal">
-              <button className="rounded-full border border-gray-300 px-8 py-3 text-sm font-medium text-gray-900 transition hover:bg-gray-50">
-                Create Account
-              </button>
-            </SignUpButton>
           </div>
         </div>
       </div>

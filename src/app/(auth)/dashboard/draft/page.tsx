@@ -331,19 +331,20 @@ export default function DraftRoomPage() {
     const player = players.find((p) => p.id === playerId);
     // Only allow selection if it's the user's team's turn to nominate
     const userTeam = teams.find((team) => team.ownerId === user?.id);
+    const isAdmin = user?.publicMetadata?.role === "admin";
+    const currentNominatorTeam = teams.find(
+      (t) => t.draftOrder === currentNominatorDraftOrder,
+    );
 
-    if (!userTeam) {
+    if (!userTeam && !isAdmin) {
       setNominationError("You must be on a team to nominate players");
       setTimeout(() => setNominationError(null), 5000);
       return;
     }
 
-    if (userTeam.draftOrder !== currentNominatorDraftOrder) {
-      const currentNominator = teams.find(
-        (t) => t.draftOrder === currentNominatorDraftOrder,
-      );
+    if (!isAdmin && userTeam?.draftOrder !== currentNominatorDraftOrder) {
       setNominationError(
-        `It's ${currentNominator?.name}'s turn to nominate a player`,
+        `It's ${currentNominatorTeam?.name}'s turn to nominate a player`,
       );
       setTimeout(() => setNominationError(null), 5000);
       return;
@@ -418,29 +419,43 @@ export default function DraftRoomPage() {
     setIsAssigningPlayer(true);
 
     try {
-      // Existing NFL player update
-      await fetch(`/api/nfl-players/${selectedPlayer.id}`, {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
+      // Update NFL player first
+      const playerResponse = await fetch(
+        `/api/nfl-players/${selectedPlayer.id}`,
+        {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            assignedTeamId: currentBid.teamId,
+            draftedAmount: currentBid.amount,
+          }),
         },
-        body: JSON.stringify({
-          assignedTeamId: currentBid.teamId,
-          draftedAmount: currentBid.amount,
-        }),
-      });
+      );
 
-      // Update team's roster
-      await fetch(`/api/rosters/${currentBid.teamId}/add-player`, {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
+      if (!playerResponse.ok) {
+        throw new Error("Failed to update player");
+      }
+
+      // Then update team's roster
+      const rosterResponse = await fetch(
+        `/api/rosters/${currentBid.teamId}/add-player`,
+        {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            playerId: selectedPlayer.id,
+            position: selectedPlayer.position,
+          }),
         },
-        body: JSON.stringify({
-          playerId: selectedPlayer.id,
-          position: selectedPlayer.position,
-        }),
-      });
+      );
+
+      if (!rosterResponse.ok) {
+        throw new Error("Failed to update roster");
+      }
 
       // Update the player in the store
       updatePlayer(selectedPlayer.id, {
@@ -467,6 +482,7 @@ export default function DraftRoomPage() {
       );
     } catch (error) {
       console.error("Error finalizing draft:", error);
+      // You might want to show an error message to the user here
     } finally {
       setIsAssigningPlayer(false);
       setIsSelling(false);
@@ -480,7 +496,7 @@ export default function DraftRoomPage() {
 
   return (
     <Container>
-      <div className="my-12 flex flex-col gap-4">
+      <div className="mb-64 mt-12 flex flex-col gap-4">
         {/* Teams section - now horizontal at top */}
         <div className="rounded-lg border p-4">
           <h2 className="mb-4 text-lg font-semibold">Teams</h2>
@@ -651,9 +667,8 @@ export default function DraftRoomPage() {
             onPlayerSelect={handlePlayerSelect}
             isDisabled={
               !user ||
-              !teams.find((team) => team.ownerId === user.id)?.draftOrder ||
-              teams.find((team) => team.ownerId === user.id)?.draftOrder !==
-                currentNominatorDraftOrder
+              (!teams.find((team) => team.ownerId === user.id)?.draftOrder &&
+                user.publicMetadata?.role !== "admin") // Allow admin to always nominate
             }
             currentNominator={
               teams.find(
@@ -722,16 +737,17 @@ export default function DraftRoomPage() {
                           </span>
                           <button
                             onClick={() => {
-                              const userTeam = teams.find(
-                                (team) => team.ownerId === user?.id,
+                              const currentNominatorTeam = teams.find(
+                                (t) =>
+                                  t.draftOrder === currentNominatorDraftOrder,
                               );
-                              if (!userTeam) return;
+                              if (!currentNominatorTeam) return;
 
                               const remainingBudget =
-                                userTeam.totalBudget -
-                                (teamBudgets[userTeam.id] ?? 0);
+                                currentNominatorTeam.totalBudget -
+                                (teamBudgets[currentNominatorTeam.id] ?? 0);
                               const roster = rosters.find(
-                                (r) => r.teamId === userTeam.id,
+                                (r) => r.teamId === currentNominatorTeam.id,
                               );
                               const rosterPositions = [
                                 "QB",
@@ -772,16 +788,17 @@ export default function DraftRoomPage() {
                               }
                             }}
                             disabled={(() => {
-                              const userTeam = teams.find(
-                                (team) => team.ownerId === user?.id,
+                              const currentNominatorTeam = teams.find(
+                                (t) =>
+                                  t.draftOrder === currentNominatorDraftOrder,
                               );
-                              if (!userTeam) return true;
+                              if (!currentNominatorTeam) return true;
 
                               const remainingBudget =
-                                userTeam.totalBudget -
-                                (teamBudgets[userTeam.id] ?? 0);
+                                currentNominatorTeam.totalBudget -
+                                (teamBudgets[currentNominatorTeam.id] ?? 0);
                               const roster = rosters.find(
-                                (r) => r.teamId === userTeam.id,
+                                (r) => r.teamId === currentNominatorTeam.id,
                               );
                               const rosterPositions = [
                                 "QB",
@@ -826,19 +843,20 @@ export default function DraftRoomPage() {
                           onClick={() => {
                             if (!user) return;
 
-                            // Find the user's team
-                            const userTeam = teams.find(
-                              (team) => team.ownerId === user.id,
+                            // Find the current nominator's team
+                            const currentNominatorTeam = teams.find(
+                              (t) =>
+                                t.draftOrder === currentNominatorDraftOrder,
                             );
-                            if (!userTeam) return;
+                            if (!currentNominatorTeam) return;
 
-                            // Create initial bid
+                            // Create initial bid using the current nominator's team's owner info
                             const initialBid: DraftBid = {
-                              userId: user.id,
-                              userName: `${user.firstName} ${user.lastName}`,
+                              userId: currentNominatorTeam.ownerId,
+                              userName: currentNominatorTeam.ownerName,
                               amount: initialNominationAmount,
                               timestamp: Date.now(),
-                              teamId: userTeam.id,
+                              teamId: currentNominatorTeam.id,
                             };
 
                             // Update local state
@@ -980,6 +998,18 @@ export default function DraftRoomPage() {
               onComplete={handleCountdownComplete}
               onCancel={handleCountdownCancel}
             />
+          )}
+
+          {/* Loading overlay for player assignment */}
+          {isAssigningPlayer && (
+            <div className="pointer-events-none fixed inset-0 z-50 flex items-center justify-center">
+              <div className="rounded-lg bg-white/90 px-12 py-8 text-center shadow-lg">
+                <div className="mx-auto mb-4 h-8 w-8 animate-spin rounded-full border-4 border-solid border-blue-500 border-r-transparent"></div>
+                <p className="text-lg font-semibold text-gray-800">
+                  Adding player and adjusting rosters...
+                </p>
+              </div>
+            </div>
           )}
         </div>
       </div>

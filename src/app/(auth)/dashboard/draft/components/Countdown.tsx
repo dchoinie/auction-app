@@ -28,27 +28,35 @@ const Countdown = memo(function Countdown({
     // Reset spoken phrases on mount
     hasSpokenRef.current = new Set();
 
-    const firstTimeout = setTimeout(() => {
-      speak("Going once");
-      setStage("first");
+    const startCountdown = () => {
+      // Going once
+      const firstTimeout = setTimeout(() => {
+        speak("Going once");
+        setStage("first");
 
-      const secondTimeout = setTimeout(() => {
-        speak("Going twice");
-        setStage("second");
+        // Going twice
+        const secondTimeout = setTimeout(() => {
+          speak("Going twice");
+          setStage("second");
 
-        const soldTimeout = setTimeout(() => {
-          speak("Sold!");
-          setStage("sold");
-          setTimeout(onComplete, 800);
+          // Sold
+          const soldTimeout = setTimeout(() => {
+            speak("Sold!");
+            setStage("sold");
+            // Add a small delay before completing to show the "SOLD!" message
+            setTimeout(onComplete, 1000);
+          }, 3000);
+
+          timeoutsRef.current.push(soldTimeout);
         }, 3000);
 
-        timeoutsRef.current.push(soldTimeout);
-      }, 3000);
+        timeoutsRef.current.push(secondTimeout);
+      }, 0);
 
-      timeoutsRef.current.push(secondTimeout);
-    }, 0);
+      timeoutsRef.current.push(firstTimeout);
+    };
 
-    timeoutsRef.current.push(firstTimeout);
+    startCountdown();
 
     return () => {
       timeoutsRef.current.forEach(clearTimeout);
