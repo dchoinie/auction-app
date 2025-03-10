@@ -36,6 +36,7 @@ const config = {
       },
     ],
     "@typescript-eslint/no-unsafe-assignment": "warn",
+    "@typescript-eslint/prefer-nullish-coalescing": "warn",
     "drizzle/enforce-delete-with-where": [
       "error",
       {
