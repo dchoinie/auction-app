@@ -125,6 +125,7 @@ export default function DraftRoomPage() {
   const [currentBid, setCurrentBid] = useState<DraftBid | null>(null);
   const [bidAmount, setBidAmount] = useState(1);
   const [bidIncrement] = useState(1);
+  const [initialNominationAmount, setInitialNominationAmount] = useState(1);
   const [bidHistory, setBidHistory] = useState<BidHistoryItem[]>([]);
   const [teams, setTeams] = useState<Team[]>([]);
   const [isLoadingTeams, setIsLoadingTeams] = useState(true);
@@ -661,18 +662,6 @@ export default function DraftRoomPage() {
             }
           />
 
-          {/* Loading overlay for player assignment */}
-          {isAssigningPlayer && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
-              <div className="rounded-lg bg-white p-6 text-center shadow-xl">
-                <div className="mb-4 inline-block h-12 w-12 animate-spin rounded-full border-4 border-solid border-blue-600 border-r-transparent"></div>
-                <p className="text-lg font-medium">
-                  Assigning player and updating budgets
-                </p>
-              </div>
-            </div>
-          )}
-
           {/* Selected Player and Current Bid */}
           {selectedPlayer && (
             <div className="mb-6 space-y-6 overflow-hidden rounded-xl border-2 border-blue-500 bg-gradient-to-br from-blue-50 via-white to-blue-50 p-8 shadow-2xl transition-all">
@@ -716,64 +705,182 @@ export default function DraftRoomPage() {
                     </div>
                   ) : (
                     <div className="flex gap-2">
-                      <button
-                        onClick={() => {
-                          if (!user) return;
+                      <div className="flex items-center gap-4">
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() =>
+                              setInitialNominationAmount((prev) =>
+                                Math.max(1, prev - bidIncrement),
+                              )
+                            }
+                            className="rounded bg-gray-200 px-3 py-1 hover:bg-gray-300"
+                          >
+                            -
+                          </button>
+                          <span className="min-w-[3ch] text-center">
+                            ${initialNominationAmount}
+                          </span>
+                          <button
+                            onClick={() => {
+                              const userTeam = teams.find(
+                                (team) => team.ownerId === user?.id,
+                              );
+                              if (!userTeam) return;
 
-                          // Find the user's team
-                          const userTeam = teams.find(
-                            (team) => team.ownerId === user.id,
-                          );
-                          if (!userTeam) return;
+                              const remainingBudget =
+                                userTeam.totalBudget -
+                                (teamBudgets[userTeam.id] ?? 0);
+                              const roster = rosters.find(
+                                (r) => r.teamId === userTeam.id,
+                              );
+                              const rosterPositions = [
+                                "QB",
+                                "RB1",
+                                "RB2",
+                                "WR1",
+                                "WR2",
+                                "TE",
+                                "Flex1",
+                                "Flex2",
+                                "Bench1",
+                                "Bench2",
+                                "Bench3",
+                                "Bench4",
+                                "Bench5",
+                                "Bench6",
+                              ];
+                              const filledSpots = roster
+                                ? rosterPositions.filter(
+                                    (pos) =>
+                                      roster[pos as keyof typeof roster] !==
+                                      null,
+                                  ).length
+                                : 0;
+                              const totalRosterSpots = 14;
+                              const remainingSpots =
+                                totalRosterSpots - filledSpots;
+                              const reserveAmount = remainingSpots - 1;
+                              const maxBid = Math.max(
+                                0,
+                                remainingBudget - reserveAmount,
+                              );
 
-                          // Create initial bid
-                          const initialBid: DraftBid = {
-                            userId: user.id,
-                            userName: `${user.firstName} ${user.lastName}`,
-                            amount: 1,
-                            timestamp: Date.now(),
-                            teamId: userTeam.id,
-                          };
+                              if (initialNominationAmount < maxBid) {
+                                setInitialNominationAmount(
+                                  (prev) => prev + bidIncrement,
+                                );
+                              }
+                            }}
+                            disabled={(() => {
+                              const userTeam = teams.find(
+                                (team) => team.ownerId === user?.id,
+                              );
+                              if (!userTeam) return true;
 
-                          // Update local state
-                          setCurrentBid(initialBid);
-                          setBidAmount(2); // Set next bid to $2
-                          setBidHistory((prev) =>
-                            [
-                              { ...initialBid, isHighestBid: true },
-                              ...prev.map((bid) => ({
-                                ...bid,
-                                isHighestBid: false,
-                              })),
-                            ].slice(0, 10),
-                          );
+                              const remainingBudget =
+                                userTeam.totalBudget -
+                                (teamBudgets[userTeam.id] ?? 0);
+                              const roster = rosters.find(
+                                (r) => r.teamId === userTeam.id,
+                              );
+                              const rosterPositions = [
+                                "QB",
+                                "RB1",
+                                "RB2",
+                                "WR1",
+                                "WR2",
+                                "TE",
+                                "Flex1",
+                                "Flex2",
+                                "Bench1",
+                                "Bench2",
+                                "Bench3",
+                                "Bench4",
+                                "Bench5",
+                                "Bench6",
+                              ];
+                              const filledSpots = roster
+                                ? rosterPositions.filter(
+                                    (pos) =>
+                                      roster[pos as keyof typeof roster] !==
+                                      null,
+                                  ).length
+                                : 0;
+                              const totalRosterSpots = 14;
+                              const remainingSpots =
+                                totalRosterSpots - filledSpots;
+                              const reserveAmount = remainingSpots - 1;
+                              const maxBid = Math.max(
+                                0,
+                                remainingBudget - reserveAmount,
+                              );
 
-                          // Send to server
-                          socket.send(
-                            JSON.stringify({
-                              type: "new_bid",
-                              bid: initialBid,
-                            }),
-                          );
-                        }}
-                        className="rounded-lg bg-gradient-to-r from-green-500 to-green-600 px-6 py-3 text-white shadow-lg transition-all hover:from-green-600 hover:to-green-700 hover:shadow-xl"
-                      >
-                        Confirm Selection ($1)
-                      </button>
-                      <button
-                        onClick={() => {
-                          setSelectedPlayer(null);
-                          socket.send(
-                            JSON.stringify({
-                              type: "select_player",
-                              player: null,
-                            }),
-                          );
-                        }}
-                        className="rounded-lg bg-gradient-to-r from-gray-500 to-gray-600 px-6 py-3 text-white shadow-lg transition-all hover:from-gray-600 hover:to-gray-700 hover:shadow-xl"
-                      >
-                        Cancel Selection
-                      </button>
+                              return initialNominationAmount >= maxBid;
+                            })()}
+                            className="rounded bg-gray-200 px-3 py-1 hover:bg-gray-300 disabled:bg-gray-100 disabled:text-gray-400"
+                          >
+                            +
+                          </button>
+                        </div>
+                        <button
+                          onClick={() => {
+                            if (!user) return;
+
+                            // Find the user's team
+                            const userTeam = teams.find(
+                              (team) => team.ownerId === user.id,
+                            );
+                            if (!userTeam) return;
+
+                            // Create initial bid
+                            const initialBid: DraftBid = {
+                              userId: user.id,
+                              userName: `${user.firstName} ${user.lastName}`,
+                              amount: initialNominationAmount,
+                              timestamp: Date.now(),
+                              teamId: userTeam.id,
+                            };
+
+                            // Update local state
+                            setCurrentBid(initialBid);
+                            setBidAmount(initialNominationAmount + 1); // Set next bid to current + 1
+                            setBidHistory((prev) =>
+                              [
+                                { ...initialBid, isHighestBid: true },
+                                ...prev.map((bid) => ({
+                                  ...bid,
+                                  isHighestBid: false,
+                                })),
+                              ].slice(0, 10),
+                            );
+
+                            // Send to server
+                            socket.send(
+                              JSON.stringify({
+                                type: "new_bid",
+                                bid: initialBid,
+                              }),
+                            );
+                          }}
+                          className="rounded-lg bg-gradient-to-r from-green-500 to-green-600 px-6 py-3 text-white shadow-lg transition-all hover:from-green-600 hover:to-green-700 hover:shadow-xl"
+                        >
+                          Confirm Selection
+                        </button>
+                        <button
+                          onClick={() => {
+                            setSelectedPlayer(null);
+                            socket.send(
+                              JSON.stringify({
+                                type: "select_player",
+                                player: null,
+                              }),
+                            );
+                          }}
+                          className="rounded-lg bg-gradient-to-r from-gray-500 to-gray-600 px-6 py-3 text-white shadow-lg transition-all hover:from-gray-600 hover:to-gray-700 hover:shadow-xl"
+                        >
+                          Cancel Selection
+                        </button>
+                      </div>
                     </div>
                   )}
                 </div>
@@ -860,9 +967,9 @@ export default function DraftRoomPage() {
                       <div className="text-sm text-gray-500">
                         {new Date(bid.timestamp).toLocaleTimeString()}
                       </div>
-          </div>
-        ))}
-      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
           )}
