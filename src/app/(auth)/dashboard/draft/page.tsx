@@ -1091,12 +1091,7 @@ export default function DraftRoomPage() {
           )}
 
           {/* Countdown overlay */}
-          {showCountdown && (
-            <Countdown
-              onComplete={handleCountdownComplete}
-              onCancel={handleCountdownCancel}
-            />
-          )}
+          {showCountdown && <Countdown onComplete={handleCountdownComplete} />}
 
           {/* Loading overlay for player assignment */}
           {isAssigningPlayer && (
