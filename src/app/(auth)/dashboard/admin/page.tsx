@@ -7,23 +7,7 @@ import ManualPlayerAssign from "./components/ManualPlayerAssign";
 import { useUserRole } from "~/hooks/use-user-role";
 import { hasPermission } from "~/lib/permissions";
 import { redirect } from "next/navigation";
-import {
-  DndContext,
-  closestCenter,
-  KeyboardSensor,
-  PointerSensor,
-  useSensor,
-  useSensors,
-  DragEndEvent,
-} from "@dnd-kit/core";
-import {
-  arrayMove,
-  SortableContext,
-  sortableKeyboardCoordinates,
-  verticalListSortingStrategy,
-  useSortable,
-} from "@dnd-kit/sortable";
-import { CSS } from "@dnd-kit/utilities";
+import Link from "next/link";
 import { useNominationStore } from "~/store/nomination";
 
 interface Team {
@@ -214,7 +198,19 @@ export default function AdminPage() {
 
   return (
     <Container className="mb-12">
-      <h1 className="mb-6 text-2xl font-bold">Admin Dashboard</h1>
+      <div className="mb-6 flex items-center justify-between">
+        <h1 className="text-2xl font-bold">Admin Dashboard</h1>
+      </div>
+
+      {/* Rosters Section */}
+      <div className="mb-8">
+        <Link
+          href="/dashboard/admin/rosters"
+          className="rounded-md bg-blue-500 px-4 py-2 text-white hover:bg-blue-600"
+        >
+          View All Rosters
+        </Link>
+      </div>
 
       {/* Draft Order Section */}
       <div className="mb-8 rounded-lg border p-4">
