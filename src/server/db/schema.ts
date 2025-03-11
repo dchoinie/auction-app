@@ -11,6 +11,7 @@ import {
   text,
   pgEnum,
   integer,
+  boolean,
 } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 
@@ -52,6 +53,7 @@ export const nflPlayers = createTable(
     nflTeamName: varchar("nfl_team_name", { length: 100 }).notNull(),
     assignedTeamId: integer("assigned_team_id").references(() => teams.id),
     draftedAmount: integer("drafted_amount"),
+    isKeeper: boolean("is_keeper").default(false),
     createdAt: timestamp("created_at", { withTimezone: true })
       .default(sql`CURRENT_TIMESTAMP`)
       .notNull(),

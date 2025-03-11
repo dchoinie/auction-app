@@ -9,7 +9,8 @@ export async function POST() {
       UPDATE "auction-app_nfl_player" 
       SET 
         assigned_team_id = NULL,
-        drafted_amount = NULL
+        drafted_amount = NULL,
+        is_keeper = FALSE
     `);
 
     return NextResponse.json({ message: "NFL players reset successfully" });

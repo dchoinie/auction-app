@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import Container from "~/components/Container";
 import PlayerImport from "./components/PlayerImport";
+import ManualPlayerAssign from "./components/ManualPlayerAssign";
 import { useUserRole } from "~/hooks/use-user-role";
 import { hasPermission } from "~/lib/permissions";
 import { redirect } from "next/navigation";
@@ -248,7 +249,7 @@ export default function AdminPage() {
   const hasUnsavedChanges = Object.keys(draftOrderChanges).length > 0;
 
   return (
-    <Container>
+    <Container className="mb-12">
       <h1 className="mb-6 text-2xl font-bold">Admin Dashboard</h1>
 
       {/* Draft Order Section */}
@@ -325,6 +326,11 @@ export default function AdminPage() {
       {/* Player Import Section */}
       <div className="mb-8">
         <PlayerImport />
+      </div>
+
+      {/* Manual Player Assignment Section */}
+      <div className="mb-8">
+        <ManualPlayerAssign />
       </div>
 
       {/* Reset Draft Section */}

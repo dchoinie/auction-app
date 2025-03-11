@@ -44,6 +44,7 @@ type RosterPosition =
 interface UpdatePlayerRequest {
   assignedTeamId: number;
   draftedAmount: number;
+  isKeeper: boolean;
 }
 
 async function findAvailableRosterSpot(
@@ -98,7 +99,7 @@ export async function PATCH(
       return new NextResponse("Unauthorized", { status: 401 });
     }
 
-    const { assignedTeamId, draftedAmount } =
+    const { assignedTeamId, draftedAmount, isKeeper } =
       (await request.json()) as UpdatePlayerRequest;
     const playerId = parseInt(params.id);
 
@@ -108,6 +109,7 @@ export async function PATCH(
       .set({
         assignedTeamId,
         draftedAmount,
+        isKeeper,
         updatedAt: new Date(),
       })
       .where(eq(nflPlayers.id, playerId))

@@ -441,6 +441,7 @@ export default function DraftRoomPage() {
           body: JSON.stringify({
             assignedTeamId: currentBid.teamId,
             draftedAmount: currentBid.amount,
+            isKeeper: false,
           }),
         },
       );
