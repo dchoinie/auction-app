@@ -126,6 +126,8 @@ export default function DraftRoomPage() {
     currentNominatorDraftOrder,
     moveToNextNominator,
     setCurrentNominator,
+    isSnakingBack,
+    setSnakingDirection,
   } = useNominationStore();
   const [activeUsers, setActiveUsers] = useState<DraftUser[]>([]);
   const [isConnected, setIsConnected] = useState(false);
@@ -561,10 +563,17 @@ export default function DraftRoomPage() {
           ) : (
             <div className="grid grid-cols-3 gap-2 lg:grid-cols-4 xl:grid-cols-5">
               {[...teams]
-                .sort(
-                  (a, b) =>
-                    (a.draftOrder ?? Infinity) - (b.draftOrder ?? Infinity),
-                )
+                .sort((a, b) => {
+                  // If both have draft orders, compare them
+                  if (a.draftOrder !== null && b.draftOrder !== null) {
+                    return a.draftOrder - b.draftOrder;
+                  }
+                  // If only one has a draft order, the one with the draft order comes first
+                  if (a.draftOrder !== null) return -1;
+                  if (b.draftOrder !== null) return 1;
+                  // If neither has a draft order, maintain their original order
+                  return 0;
+                })
                 .map((team) => {
                   const remainingBudget =
                     team.totalBudget - (teamBudgets[team.id] ?? 0);
@@ -599,6 +608,7 @@ export default function DraftRoomPage() {
                   const reserveAmount = remainingSpots - 1;
                   const maxBid = Math.max(0, remainingBudget - reserveAmount);
                   const isCurrentNominator =
+                    team.draftOrder !== null &&
                     team.draftOrder === currentNominatorDraftOrder;
 
                   return (
@@ -610,6 +620,11 @@ export default function DraftRoomPage() {
                           : ""
                       }`}
                     >
+                      {isCurrentNominator && (
+                        <span className="absolute -top-[12px] left-1/2 -translate-x-1/2 transform rounded-full bg-blue-100 px-3 py-1 text-xs font-medium text-blue-800 shadow-sm">
+                          Nominating
+                        </span>
+                      )}
                       {user?.publicMetadata?.role === "admin" && (
                         <div className="absolute right-2 top-2">
                           <DropdownMenu>
@@ -632,6 +647,14 @@ export default function DraftRoomPage() {
                                 disabled={!isCurrentNominator}
                               >
                                 Skip Turn
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                onClick={() =>
+                                  setSnakingDirection(!isSnakingBack)
+                                }
+                              >
+                                Direction:{" "}
+                                {isSnakingBack ? "⬅️ Backward" : "➡️ Forward"}
                               </DropdownMenuItem>
                             </DropdownMenuContent>
                           </DropdownMenu>
@@ -656,11 +679,6 @@ export default function DraftRoomPage() {
                             {team.ownerId === user?.id && (
                               <span className="text-xs text-gray-500">
                                 (You)
-                              </span>
-                            )}
-                            {isCurrentNominator && (
-                              <span className="ml-1 rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-800">
-                                Nominating
                               </span>
                             )}
                           </div>

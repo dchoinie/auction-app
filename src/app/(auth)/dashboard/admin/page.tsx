@@ -24,6 +24,7 @@ import {
   useSortable,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
+import { useNominationStore } from "~/store/nomination";
 
 interface Team {
   id: number;
@@ -32,45 +33,25 @@ interface Team {
   draftOrder: number | null;
 }
 
-interface SortableTeamItemProps {
+function TeamListItem({
+  team,
+  isModified,
+}: {
   team: Team;
   isModified?: boolean;
-}
-
-function SortableTeamItem({ team, isModified }: SortableTeamItemProps) {
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-    isDragging,
-  } = useSortable({ id: team.id });
-
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-  };
-
+}) {
   return (
     <div
-      ref={setNodeRef}
-      style={style}
-      className={`my-12 flex items-center gap-4 rounded-lg border p-4 ${
-        isDragging ? "bg-blue-50 shadow-lg" : "bg-white"
-      } ${isModified ? "border-amber-500" : ""}`}
-      {...attributes}
-      {...listeners}
+      className={`flex flex-col rounded border px-2 py-1 text-sm ${
+        isModified ? "border-amber-500" : "border-gray-200"
+      }`}
     >
-      <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gray-100 font-semibold text-gray-700">
+      <div className="flex h-4 w-4 items-center justify-center rounded-full bg-gray-100 text-xs font-semibold text-gray-700">
         {team.draftOrder ?? "—"}
       </div>
-      <div>
-        <div className="font-medium">{team.name}</div>
-        <div className="text-sm text-gray-500">{team.ownerName}</div>
-        {isModified && <div className="text-xs text-amber-600">Modified</div>}
-      </div>
-      <div className="ml-auto cursor-move text-gray-400">⋮⋮</div>
+      <span className="font-medium">{team.name}</span>
+      <span className="text-xs text-gray-500">({team.ownerName})</span>
+      {isModified && <span className="text-xs text-amber-600">*</span>}
     </div>
   );
 }
@@ -87,13 +68,7 @@ export default function AdminPage() {
     type: "success" | "error";
     text: string;
   } | null>(null);
-
-  const sensors = useSensors(
-    useSensor(PointerSensor),
-    useSensor(KeyboardSensor, {
-      coordinateGetter: sortableKeyboardCoordinates,
-    }),
-  );
+  const { resetNomination } = useNominationStore();
 
   useEffect(() => {
     const fetchTeams = async () => {
@@ -108,22 +83,23 @@ export default function AdminPage() {
     redirect("/dashboard");
   }
 
-  const handleDragEnd = (event: DragEndEvent) => {
-    const { active, over } = event;
+  const handleRandomize = () => {
+    setTeams((currentTeams) => {
+      // Create a copy of teams array
+      const shuffledTeams = [...currentTeams];
 
-    if (!over || active.id === over.id) {
-      return;
-    }
+      // Fisher-Yates shuffle algorithm
+      for (let i = shuffledTeams.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [shuffledTeams[i], shuffledTeams[j]] = [
+          shuffledTeams[j]!,
+          shuffledTeams[i]!,
+        ];
+      }
 
-    setTeams((teams) => {
-      const oldIndex = teams.findIndex((team) => team.id === active.id);
-      const newIndex = teams.findIndex((team) => team.id === over.id);
-
-      const newTeams = arrayMove(teams, oldIndex, newIndex);
-
-      // Update draft order changes based on new positions
+      // Update draft order changes based on new random positions
       const newChanges = { ...draftOrderChanges };
-      newTeams.forEach((team, index) => {
+      shuffledTeams.forEach((team, index) => {
         const newPosition = index + 1;
         if (team.draftOrder !== newPosition) {
           newChanges[team.id] = newPosition;
@@ -131,7 +107,7 @@ export default function AdminPage() {
       });
       setDraftOrderChanges(newChanges);
 
-      return newTeams;
+      return shuffledTeams;
     });
   };
 
@@ -175,34 +151,6 @@ export default function AdminPage() {
     }
   };
 
-  const handleRandomize = () => {
-    setTeams((currentTeams) => {
-      // Create a copy of teams array
-      const shuffledTeams = [...currentTeams];
-
-      // Fisher-Yates shuffle algorithm
-      for (let i = shuffledTeams.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [shuffledTeams[i], shuffledTeams[j]] = [
-          shuffledTeams[j]!,
-          shuffledTeams[i]!,
-        ];
-      }
-
-      // Update draft order changes based on new random positions
-      const newChanges = { ...draftOrderChanges };
-      shuffledTeams.forEach((team, index) => {
-        const newPosition = index + 1;
-        if (team.draftOrder !== newPosition) {
-          newChanges[team.id] = newPosition;
-        }
-      });
-      setDraftOrderChanges(newChanges);
-
-      return shuffledTeams;
-    });
-  };
-
   const handleResetDraft = async () => {
     if (
       !confirm(
@@ -230,6 +178,22 @@ export default function AdminPage() {
       await fetch("/api/teams/budget/reset", {
         method: "POST",
       });
+
+      // Reset draft orders
+      await fetch("/api/teams/draft-order/reset", {
+        method: "POST",
+      });
+
+      // Fetch updated teams list
+      const response = await fetch("/api/teams");
+      const data = (await response.json()) as Team[];
+      setTeams(data);
+
+      // Clear any pending draft order changes
+      setDraftOrderChanges({});
+
+      // Reset nomination store AFTER all resets are complete
+      resetNomination();
 
       setUpdateMessage({
         type: "success",
@@ -260,7 +224,7 @@ export default function AdminPage() {
             <button
               onClick={handleRandomize}
               disabled={isUpdating}
-              className={`ml-4 rounded-md px-4 py-2 text-white ${
+              className={`rounded-md px-4 py-2 text-white ${
                 isUpdating
                   ? "cursor-not-allowed bg-gray-400"
                   : "bg-purple-500 hover:bg-purple-600"
@@ -301,25 +265,14 @@ export default function AdminPage() {
           </div>
         )}
 
-        <div className="space-y-2">
-          <DndContext
-            sensors={sensors}
-            collisionDetection={closestCenter}
-            onDragEnd={handleDragEnd}
-          >
-            <SortableContext
-              items={teams.map((t) => t.id)}
-              strategy={verticalListSortingStrategy}
-            >
-              {teams.map((team) => (
-                <SortableTeamItem
-                  key={team.id}
-                  team={team}
-                  isModified={draftOrderChanges[team.id] !== undefined}
-                />
-              ))}
-            </SortableContext>
-          </DndContext>
+        <div className="grid grid-cols-10">
+          {teams.map((team) => (
+            <TeamListItem
+              key={team.id}
+              team={team}
+              isModified={draftOrderChanges[team.id] !== undefined}
+            />
+          ))}
         </div>
       </div>
 
