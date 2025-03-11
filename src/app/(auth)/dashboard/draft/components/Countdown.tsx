@@ -4,13 +4,9 @@ import { useEffect, useRef, useState, memo } from "react";
 
 interface CountdownProps {
   onComplete: () => void;
-  onCancel: () => void;
 }
 
-const Countdown = memo(function Countdown({
-  onComplete,
-  onCancel,
-}: CountdownProps) {
+const Countdown = memo(function Countdown({ onComplete }: CountdownProps) {
   const [stage, setStage] = useState<"first" | "second" | "sold">("first");
   const timeoutsRef = useRef<NodeJS.Timeout[]>([]);
   const hasSpokenRef = useRef<Set<string>>(new Set());
