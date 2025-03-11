@@ -4,7 +4,8 @@ import { sql } from "drizzle-orm";
 
 export async function POST() {
   try {
-    // Reset all roster positions to null
+    // Intentionally updating all rows as this is a reset operation
+    // eslint-disable-next-line drizzle/enforce-update-with-where
     await db.execute(sql`
       UPDATE "auction-app_roster" 
       SET 
