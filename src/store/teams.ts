@@ -32,7 +32,7 @@ interface TeamsStore {
   error: string | null;
   hasFetched: boolean;
   fetchTeams: () => Promise<void>;
-  createTeam: (name: string) => Promise<Team>;
+  createTeam: (name: string, ownerName: string) => Promise<Team>;
 }
 
 export const useTeamsStore = create<TeamsStore>()(
@@ -54,7 +54,7 @@ export const useTeamsStore = create<TeamsStore>()(
           throw error;
         }
       },
-      createTeam: async (name: string) => {
+      createTeam: async (name: string, ownerName: string) => {
         try {
           const res = await fetch("/api/teams", {
             method: "POST",
@@ -62,7 +62,7 @@ export const useTeamsStore = create<TeamsStore>()(
               "Content-Type": "application/json",
               Accept: "application/json",
             },
-            body: JSON.stringify({ name }),
+            body: JSON.stringify({ name, ownerName }),
           });
 
           const data = (await res.json()) as CreateTeamResponse | ApiError;

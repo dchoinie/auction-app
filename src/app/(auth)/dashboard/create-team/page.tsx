@@ -20,7 +20,10 @@ export default function CreateTeamPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      await createTeam(teamName);
+      await createTeam(
+        teamName,
+        ownerName || `${user?.firstName} ${user?.lastName}`,
+      );
       await fetchTeams(); // Refetch teams to get the latest data
       router.push("/dashboard");
     } catch (error) {
