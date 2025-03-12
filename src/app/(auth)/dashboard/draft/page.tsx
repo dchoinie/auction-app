@@ -2,7 +2,7 @@
 /* eslint-disable @typescript-eslint/prefer-nullish-coalescing */
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useUser } from "@clerk/nextjs";
 import { useRouter } from "next/navigation";
 import Container from "~/components/Container";
@@ -41,6 +41,8 @@ interface DraftUser {
   name: string;
   isActive: boolean;
   joinedAt: number;
+  connectionId?: string;
+  lastHeartbeat?: number;
 }
 
 // interface DraftState {
@@ -56,7 +58,8 @@ interface DraftMessage {
     | "new_bid"
     | "init_state"
     | "user_joined"
-    | "user_left";
+    | "user_left"
+    | "heartbeat";
   users?: DraftUser[];
   message?: string;
   player?: NFLPlayer;
@@ -130,7 +133,6 @@ export default function DraftRoomPage() {
     forceNextDirection,
     currentRound,
   } = useNominationStore();
-  const [activeUsers, setActiveUsers] = useState<DraftUser[]>([]);
   const [isConnected, setIsConnected] = useState(false);
   const { players, fetchPlayers, updatePlayer, invalidateCache } =
     useNFLPlayersStore();
@@ -150,6 +152,11 @@ export default function DraftRoomPage() {
   const [isAssigningPlayer, setIsAssigningPlayer] = useState(false);
   const [isSelling, setIsSelling] = useState(false);
   const [nominationError, setNominationError] = useState<string | null>(null);
+  const [lastHeartbeat, setLastHeartbeat] = useState<number>(Date.now());
+  const [connectionStatus, setConnectionStatus] = useState<
+    "connected" | "disconnected" | "reconnecting"
+  >("disconnected");
+  const heartbeatInterval = useRef<NodeJS.Timeout>();
 
   const socket = usePartySocket({
     host: process.env.NEXT_PUBLIC_PARTYKIT_HOST!,
@@ -157,32 +164,39 @@ export default function DraftRoomPage() {
     onOpen() {
       console.log("Connected to PartyKit");
       setIsConnected(true);
+      setConnectionStatus("connected");
+      setLastHeartbeat(Date.now());
       // Server will automatically send init_state after connection
     },
     onClose() {
       console.log("Disconnected from PartyKit");
       setIsConnected(false);
+      setConnectionStatus("disconnected");
+      cleanup();
     },
     onMessage(event: MessageEvent) {
       try {
         const data = JSON.parse(event.data as string) as DraftMessage;
 
         switch (data.type) {
+          case "heartbeat":
+            setLastHeartbeat(Date.now());
+            break;
           case "init_state":
+            // Always set users if they exist, regardless of current bid
+            if (data.state?.users) {
+              setActiveUserIds(
+                new Set(data.state.users.map((user) => user.id)),
+              );
+            }
+
+            // Set other state if there's a current bid
             if (data.state?.currentBid) {
               setSelectedPlayer(data.state.selectedPlayer);
               setCurrentBid(data.state.currentBid);
               setBidAmount(
                 data.state.currentBid ? data.state.currentBid.amount + 1 : 1,
               );
-
-              // Always set users if they exist
-              if (data.state.users) {
-                const sortedUsers = [...data.state.users].sort(
-                  (a, b) => a.joinedAt - b.joinedAt,
-                );
-                setActiveUsers(sortedUsers);
-              }
 
               // Fix type safety in bid history
               const newBid: BidHistoryItem = {
@@ -231,7 +245,7 @@ export default function DraftRoomPage() {
             break;
           case "user_joined":
             if (data.user) {
-              setActiveUserIds((prev) => new Set(prev).add(data.user!.id));
+              setActiveUserIds((prev) => new Set([...prev, data.user!.id]));
             }
             break;
           case "user_left":
@@ -310,19 +324,18 @@ export default function DraftRoomPage() {
   const joinDraftRoom = () => {
     if (user) {
       // Add user to active users immediately in local state
-      const newUser: DraftUser = {
-        id: user.id,
-        name: `${user.firstName} ${user.lastName}`,
-        isActive: true,
-        joinedAt: Date.now(),
-      };
-      setActiveUsers((prev) => [...prev, newUser]);
+      setActiveUserIds((prev) => new Set([...prev, user.id]));
 
       // Send join message to server
       socket.send(
         JSON.stringify({
           type: "join",
-          user: newUser,
+          user: {
+            id: user.id,
+            name: `${user.firstName} ${user.lastName}`,
+            isActive: true,
+            joinedAt: Date.now(),
+          },
         }),
       );
     }
@@ -628,12 +641,87 @@ export default function DraftRoomPage() {
     setIsSelling(false);
   }, []);
 
+  // Add cleanup function for WebSocket
+  const cleanup = useCallback(() => {
+    if (user) {
+      socket.send(
+        JSON.stringify({
+          type: "leave",
+          userId: user.id,
+        }),
+      );
+    }
+    if (heartbeatInterval.current) {
+      clearInterval(heartbeatInterval.current);
+    }
+  }, [socket, user]);
+
+  // Set up heartbeat interval
+  useEffect(() => {
+    if (isConnected && user) {
+      heartbeatInterval.current = setInterval(() => {
+        socket.send(
+          JSON.stringify({
+            type: "heartbeat",
+            userId: user.id,
+          }),
+        );
+      }, 30000);
+    }
+
+    return () => {
+      if (heartbeatInterval.current) {
+        clearInterval(heartbeatInterval.current);
+      }
+    };
+  }, [isConnected, socket, user]);
+
+  // Clean up on unmount
+  useEffect(() => {
+    return cleanup;
+  }, [cleanup]);
+
+  // Update connection status based on last heartbeat
+  useEffect(() => {
+    const checkHeartbeat = () => {
+      const now = Date.now();
+      const timeSinceLastHeartbeat = now - lastHeartbeat;
+
+      if (timeSinceLastHeartbeat > 90000) {
+        // 90 seconds without heartbeat
+        setConnectionStatus("disconnected");
+      } else if (timeSinceLastHeartbeat > 60000) {
+        // 60 seconds without heartbeat
+        setConnectionStatus("reconnecting");
+      } else {
+        setConnectionStatus("connected");
+      }
+    };
+
+    const interval = setInterval(checkHeartbeat, 30000);
+    return () => clearInterval(interval);
+  }, [lastHeartbeat]);
+
+  // Update the connection status indicator in the UI
+  const getConnectionStatusColor = () => {
+    switch (connectionStatus) {
+      case "connected":
+        return "bg-green-500";
+      case "reconnecting":
+        return "bg-yellow-500";
+      case "disconnected":
+        return "bg-red-500";
+    }
+  };
+
   return (
     <Container>
       <div className="mb-64 mt-12 flex flex-col gap-4">
         {/* Teams section - now horizontal at top */}
         <div className="rounded-lg border p-4">
-          <h2 className="mb-4 text-lg font-semibold">Teams</h2>
+          <div className="mb-4 flex items-center justify-between">
+            <h2 className="text-lg font-semibold">Teams</h2>
+          </div>
           {isLoadingTeams ? (
             <div className="flex flex-col items-center justify-center py-8">
               <div className="h-8 w-8 animate-spin rounded-full border-4 border-solid border-blue-500 border-r-transparent"></div>
@@ -657,8 +745,12 @@ export default function DraftRoomPage() {
                   const remainingBudget =
                     team.totalBudget - (teamBudgets[team.id] ?? 0);
                   const roster = rosters.find((r) => r.teamId === team.id);
+                  const isCurrentNominator =
+                    team.draftOrder !== null &&
+                    team.draftOrder === currentNominatorDraftOrder;
+                  const isUserActive = activeUserIds.has(team.ownerId);
 
-                  // Count filled spots by checking each roster position
+                  // Calculate roster spots
                   const rosterPositions = [
                     "QB",
                     "RB1",
@@ -686,9 +778,6 @@ export default function DraftRoomPage() {
                   const remainingSpots = totalRosterSpots - filledSpots;
                   const reserveAmount = remainingSpots - 1;
                   const maxBid = Math.max(0, remainingBudget - reserveAmount);
-                  const isCurrentNominator =
-                    team.draftOrder !== null &&
-                    team.draftOrder === currentNominatorDraftOrder;
 
                   return (
                     <div
@@ -748,9 +837,7 @@ export default function DraftRoomPage() {
                       <div className="flex items-center gap-2">
                         <div
                           className={`h-2 w-2 rounded-full ${
-                            activeUserIds.has(team.ownerId)
-                              ? "bg-green-500"
-                              : "bg-gray-300"
+                            isUserActive ? "bg-green-500" : "bg-gray-300"
                           }`}
                         />
                         <div className="flex-1">

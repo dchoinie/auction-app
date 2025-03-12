@@ -5,6 +5,8 @@ interface DraftUser {
   name: string;
   isActive: boolean;
   joinedAt: number;
+  connectionId?: string;
+  lastHeartbeat: number;
 }
 
 interface NFLPlayer {
@@ -34,7 +36,8 @@ interface DraftMessage {
     | "select_player"
     | "new_bid"
     | "user_joined"
-    | "user_left";
+    | "user_left"
+    | "heartbeat";
   user?: DraftUser;
   userId?: string;
   player?: NFLPlayer;
@@ -49,6 +52,7 @@ export default class DraftRoom {
 
   connections = new Set<Connection>();
   activeUsers = new Map<string, DraftUser>();
+  heartbeatIntervals = new Map<string, NodeJS.Timeout>();
   currentState: DraftState = {
     selectedPlayer: null,
     currentBid: null,
@@ -56,6 +60,33 @@ export default class DraftRoom {
 
   constructor(readonly party: Party) {
     console.log("Draft room created:", party.id);
+  }
+
+  private startHeartbeat(userId: string, conn: Connection) {
+    // Clear any existing heartbeat
+    this.clearHeartbeat(userId);
+
+    // Send initial heartbeat
+    conn.send(JSON.stringify({ type: "heartbeat" }));
+
+    // Set up interval to send heartbeat every 30 seconds
+    const interval = setInterval(() => {
+      if (this.connections.has(conn)) {
+        conn.send(JSON.stringify({ type: "heartbeat" }));
+      } else {
+        this.clearHeartbeat(userId);
+      }
+    }, 30000);
+
+    this.heartbeatIntervals.set(userId, interval);
+  }
+
+  private clearHeartbeat(userId: string) {
+    const interval = this.heartbeatIntervals.get(userId);
+    if (interval) {
+      clearInterval(interval);
+      this.heartbeatIntervals.delete(userId);
+    }
   }
 
   async onStart() {
@@ -95,13 +126,20 @@ export default class DraftRoom {
         case "join":
           if (data.user) {
             console.log("User joining:", data.user);
-            this.activeUsers.set(data.user.id, data.user);
+            // Store connection ID with user data
+            const userWithConnection = {
+              ...data.user,
+              connectionId: sender.id,
+              lastHeartbeat: Date.now(),
+            };
+            this.activeUsers.set(data.user.id, userWithConnection);
+            this.startHeartbeat(data.user.id, sender);
 
             // Broadcast to other users that someone joined
             this.party.broadcast(
               JSON.stringify({
                 type: "user_joined",
-                user: data.user,
+                user: userWithConnection,
               }),
               [sender.id], // Exclude sender
             );
@@ -162,6 +200,16 @@ export default class DraftRoom {
             );
           }
           break;
+
+        case "heartbeat":
+          if (data.userId) {
+            const user = this.activeUsers.get(data.userId);
+            if (user) {
+              user.lastHeartbeat = Date.now();
+              this.activeUsers.set(data.userId, user);
+            }
+          }
+          break;
       }
     } catch (error) {
       console.error("Error in onMessage:", error, "Raw message:", message);
@@ -201,10 +249,26 @@ export default class DraftRoom {
     );
   }
 
-  onClose(conn: Connection) {
+  async onClose(conn: Connection) {
     this.connections.delete(conn);
-    // Could add cleanup here if needed
     console.log("Connection closed:", conn.id);
+
+    // Find and remove the user associated with this connection
+    for (const [userId, user] of this.activeUsers.entries()) {
+      if (user.connectionId === conn.id) {
+        this.activeUsers.delete(userId);
+        this.clearHeartbeat(userId);
+
+        // Broadcast to all that user left
+        this.party.broadcast(
+          JSON.stringify({
+            type: "user_left",
+            userId: userId,
+          }),
+        );
+        break;
+      }
+    }
   }
 }
 
