@@ -157,6 +157,14 @@ export default function DraftRoomPage() {
     "connected" | "disconnected" | "reconnecting"
   >("disconnected");
   const heartbeatInterval = useRef<NodeJS.Timeout>();
+  const [onlineUsers, setOnlineUsers] = useState<Set<string>>(new Set());
+
+  // Add effect to update online users when Clerk session changes
+  useEffect(() => {
+    if (user) {
+      setOnlineUsers((prev) => new Set([...prev, user.id]));
+    }
+  }, [user]);
 
   const socket = usePartySocket({
     host: process.env.NEXT_PUBLIC_PARTYKIT_HOST!,
@@ -185,6 +193,7 @@ export default function DraftRoomPage() {
           case "init_state":
             // Always set users if they exist, regardless of current bid
             if (data.state?.users) {
+              console.log("Setting initial active users:", data.state.users);
               setActiveUserIds(
                 new Set(data.state.users.map((user) => user.id)),
               );
@@ -212,7 +221,7 @@ export default function DraftRoomPage() {
             }
             break;
           case "welcome":
-            console.log(data.message);
+            console.log("Welcome message:", data.message);
             break;
           case "select_player":
             if (data.player) {
@@ -323,9 +332,6 @@ export default function DraftRoomPage() {
 
   const joinDraftRoom = () => {
     if (user) {
-      // Add user to active users immediately in local state
-      setActiveUserIds((prev) => new Set([...prev, user.id]));
-
       // Send join message to server
       socket.send(
         JSON.stringify({
@@ -748,7 +754,7 @@ export default function DraftRoomPage() {
                   const isCurrentNominator =
                     team.draftOrder !== null &&
                     team.draftOrder === currentNominatorDraftOrder;
-                  const isUserActive = activeUserIds.has(team.ownerId);
+                  const isUserActive = onlineUsers.has(team.ownerId);
 
                   // Calculate roster spots
                   const rosterPositions = [

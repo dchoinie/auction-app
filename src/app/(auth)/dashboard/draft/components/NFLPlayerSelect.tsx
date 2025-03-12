@@ -27,7 +27,6 @@ export default function NFLPlayerSelect({
       try {
         console.log("Fetching players...");
         await fetchPlayers();
-        console.log("Players fetched successfully:", players);
         setError(null);
       } catch (err) {
         console.error("Error fetching players:", err);

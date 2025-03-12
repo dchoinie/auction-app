@@ -99,14 +99,21 @@ export default class DraftRoom {
     this.connections.add(conn);
     console.log("New connection:", conn.id);
 
-    // Always send initial state with users, regardless of bids
+    // Send welcome message
+    conn.send(
+      JSON.stringify({
+        type: "welcome",
+        message: "Connected to draft room",
+      }),
+    );
+
+    // Send initial state
     conn.send(
       JSON.stringify({
         type: "init_state",
         state: {
           selectedPlayer: this.currentState.selectedPlayer,
           currentBid: this.currentState.currentBid,
-          users: Array.from(this.activeUsers.values()),
         },
       }),
     );
@@ -135,13 +142,12 @@ export default class DraftRoom {
             this.activeUsers.set(data.user.id, userWithConnection);
             this.startHeartbeat(data.user.id, sender);
 
-            // Broadcast to other users that someone joined
+            // Broadcast to all users that someone joined, including sender
             this.party.broadcast(
               JSON.stringify({
                 type: "user_joined",
                 user: userWithConnection,
               }),
-              [sender.id], // Exclude sender
             );
           }
           break;
