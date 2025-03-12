@@ -44,10 +44,14 @@ export async function POST(request: Request) {
   try {
     const { userId } = await auth();
     if (!userId) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return NextResponse.json(
+        { error: "Authentication required to create a team" },
+        { status: 401 },
+      );
     }
 
     const body = (await request.json()) as CreateTeamRequest;
+    console.log("Request body:", body); // Log the request body
     const { name: teamName, ownerName } = body;
 
     // If no name provided, check if owner name exists
@@ -68,6 +72,8 @@ export async function POST(request: Request) {
         ownerId: userId,
       })
       .returning();
+
+    console.log("Created team:", newTeam[0]); // Log the created team
 
     // Create empty roster for the team
     await db.insert(rosters).values({
@@ -91,8 +97,12 @@ export async function POST(request: Request) {
     return NextResponse.json(newTeam[0]);
   } catch (error) {
     console.error("Error creating team:", error);
+    // Return more detailed error information
     return NextResponse.json(
-      { error: "Failed to create team" },
+      {
+        error: "Failed to create team",
+        details: error instanceof Error ? error.message : String(error),
+      },
       { status: 500 },
     );
   }

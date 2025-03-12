@@ -6,5 +6,16 @@ import { clerkMiddleware } from "@clerk/nextjs/server";
 export default clerkMiddleware();
 
 export const config = {
-  matcher: ["/((?!api|_next/static|_next/image|favicon.ico).*)"],
+  matcher: [
+    /*
+     * Match all request paths except for the ones starting with:
+     * - _next/static (static files)
+     * - _next/image (image optimization files)
+     * - favicon.ico (favicon file)
+     * - party (PartyKit server)
+     * - api/webhook (webhook endpoints)
+     * - api/uploadthing (uploadthing endpoints)
+     */
+    "/((?!_next/static|_next/image|favicon.ico|party|api/webhook|api/uploadthing).*)",
+  ],
 };
