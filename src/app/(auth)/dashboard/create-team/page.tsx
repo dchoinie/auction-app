@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useUser } from "@clerk/nextjs";
 import Container from "~/components/Container";
 import { useRouter } from "next/navigation";
+import { useTeamsStore } from "~/store/teams";
 
 export default function CreateTeamPage() {
   const { user } = useUser();
@@ -14,19 +15,13 @@ export default function CreateTeamPage() {
       : "",
   );
   const router = useRouter();
+  const { createTeam, fetchTeams } = useTeamsStore();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const res = await fetch("/api/teams", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: teamName,
-          ownerName: ownerName || `${user?.firstName} ${user?.lastName}`,
-        }),
-      });
-      if (!res.ok) throw new Error("Failed to create team");
+      await createTeam(teamName);
+      await fetchTeams(); // Refetch teams to get the latest data
       router.push("/dashboard");
     } catch (error) {
       console.error("Failed to create team:", error);
