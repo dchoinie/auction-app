@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unsafe-assignment */
 /* eslint-disable @typescript-eslint/prefer-nullish-coalescing */
 "use client";
 
@@ -42,10 +43,10 @@ interface DraftUser {
   joinedAt: number;
 }
 
-interface DraftState {
-  selectedPlayer: NFLPlayer | null;
-  currentBid: DraftBid | null;
-}
+// interface DraftState {
+//   selectedPlayer: NFLPlayer | null;
+//   currentBid: DraftBid | null;
+// }
 
 interface DraftMessage {
   type:
@@ -126,8 +127,8 @@ export default function DraftRoomPage() {
     currentNominatorDraftOrder,
     moveToNextNominator,
     setCurrentNominator,
-    isSnakingBack,
-    setSnakingDirection,
+    forceNextDirection,
+    currentRound,
   } = useNominationStore();
   const [activeUsers, setActiveUsers] = useState<DraftUser[]>([]);
   const [isConnected, setIsConnected] = useState(false);
@@ -135,7 +136,7 @@ export default function DraftRoomPage() {
     useNFLPlayersStore();
   const [selectedPlayer, setSelectedPlayer] = useState<NFLPlayer | null>(null);
   const [currentBid, setCurrentBid] = useState<DraftBid | null>(null);
-  const [bidAmount, setBidAmount] = useState(1);
+  const [bidAmount, setBidAmount] = useState<number>(1);
   const [bidIncrement] = useState(1);
   const [initialNominationAmount, setInitialNominationAmount] = useState(1);
   const [bidHistory, setBidHistory] = useState<BidHistoryItem[]>([]);
@@ -384,6 +385,42 @@ export default function DraftRoomPage() {
     const userTeam = teams.find((team) => team.ownerId === user.id);
     if (!userTeam) return;
 
+    // Calculate remaining budget and roster spots
+    const remainingBudget =
+      userTeam.totalBudget - (teamBudgets[userTeam.id] ?? 0);
+    const roster = rosters.find((r) => r.teamId === userTeam.id);
+    const rosterPositions = [
+      "QB",
+      "RB1",
+      "RB2",
+      "WR1",
+      "WR2",
+      "TE",
+      "Flex1",
+      "Flex2",
+      "Bench1",
+      "Bench2",
+      "Bench3",
+      "Bench4",
+      "Bench5",
+      "Bench6",
+    ];
+    const filledSpots = roster
+      ? rosterPositions.filter(
+          (pos) => roster[pos as keyof typeof roster] !== null,
+        ).length
+      : 0;
+    const totalRosterSpots = 14;
+    const remainingSpots = totalRosterSpots - filledSpots;
+    const reserveAmount = remainingSpots - 1;
+    const maxBid = Math.max(0, remainingBudget - reserveAmount);
+
+    // Validate bid amount
+    const minBid = (currentBid?.amount ?? 0) + 1;
+    if (bidAmount < minBid || bidAmount > maxBid) {
+      return; // Don't allow invalid bids
+    }
+
     // Cancel any active countdown
     setShowCountdown(false);
 
@@ -414,8 +451,50 @@ export default function DraftRoomPage() {
   };
 
   const adjustBidAmount = (amount: number) => {
-    const minBid = currentBid ? currentBid.amount + 1 : 1;
-    setBidAmount(Math.max(minBid, bidAmount + amount));
+    if (!user) return;
+
+    // Find the user's team
+    const userTeam = teams.find((team) => team.ownerId === user.id);
+    if (!userTeam) return;
+
+    // Calculate remaining budget and roster spots
+    const remainingBudget =
+      userTeam.totalBudget - (teamBudgets[userTeam.id] ?? 0);
+    const roster = rosters.find((r) => r.teamId === userTeam.id);
+    const rosterPositions = [
+      "QB",
+      "RB1",
+      "RB2",
+      "WR1",
+      "WR2",
+      "TE",
+      "Flex1",
+      "Flex2",
+      "Bench1",
+      "Bench2",
+      "Bench3",
+      "Bench4",
+      "Bench5",
+      "Bench6",
+    ];
+    const filledSpots = roster
+      ? rosterPositions.filter(
+          (pos) => roster[pos as keyof typeof roster] !== null,
+        ).length
+      : 0;
+    const totalRosterSpots = 14;
+    const remainingSpots = totalRosterSpots - filledSpots;
+    const reserveAmount = remainingSpots - 1;
+    const maxBid = Math.max(0, remainingBudget - reserveAmount);
+
+    // Calculate the new bid amount
+    const newBidAmount = bidAmount + amount;
+    const minBid = (currentBid?.amount ?? 0) + 1;
+
+    // Only allow the bid if it's within valid range
+    if (newBidAmount >= minBid && newBidAmount <= maxBid) {
+      setBidAmount(newBidAmount);
+    }
   };
 
   const handleCountdownComplete = useCallback(async () => {
@@ -649,12 +728,18 @@ export default function DraftRoomPage() {
                                 Skip Turn
                               </DropdownMenuItem>
                               <DropdownMenuItem
-                                onClick={() =>
-                                  setSnakingDirection(!isSnakingBack)
-                                }
+                                onClick={() => {
+                                  forceNextDirection(
+                                    currentRound % 2 === 1
+                                      ? "backward"
+                                      : "forward",
+                                  );
+                                }}
                               >
                                 Direction:{" "}
-                                {isSnakingBack ? "⬅️ Backward" : "➡️ Forward"}
+                                {currentRound % 2 === 1
+                                  ? "⬅️ Backward"
+                                  : "➡️ Forward"}
                               </DropdownMenuItem>
                             </DropdownMenuContent>
                           </DropdownMenu>
@@ -731,7 +816,22 @@ export default function DraftRoomPage() {
         {/* Main draft room content */}
         <div className="rounded-lg border p-4">
           <div className="flex items-center justify-between">
-            <h1 className="text-2xl font-bold">Draft Room</h1>
+            <div className="flex items-center gap-4">
+              <h1 className="text-2xl font-bold">Draft Room</h1>
+              <div className="flex items-center gap-2 rounded-lg bg-blue-50 px-3 py-1">
+                <span className="text-sm font-medium text-blue-700">Round</span>
+                <span className="text-lg font-bold text-blue-800">
+                  {currentRound}
+                </span>
+                <span className="text-sm font-medium text-blue-700">Pick</span>
+                <span className="text-lg font-bold text-blue-800">
+                  {currentNominatorDraftOrder}
+                </span>
+                <span className="text-sm font-medium text-blue-700">
+                  {currentRound % 2 === 1 ? "➡️" : "⬅️"}
+                </span>
+              </div>
+            </div>
             {isConnected && (
               <button
                 onClick={leaveDraftRoom}
@@ -826,7 +926,17 @@ export default function DraftRoomPage() {
                                 Math.max(1, prev - bidIncrement),
                               )
                             }
-                            className="rounded bg-gray-200 px-3 py-1 hover:bg-gray-300"
+                            className={`rounded px-3 py-1 ${(() => {
+                              if (!user) return "bg-gray-100 text-gray-400";
+                              const userTeam = teams.find(
+                                (team) => team.ownerId === user.id,
+                              );
+                              if (!userTeam) return "bg-gray-100 text-gray-400";
+                              const minBid = 1;
+                              return initialNominationAmount <= minBid
+                                ? "bg-gray-100 text-gray-400"
+                                : "bg-gray-200 hover:bg-gray-300";
+                            })()}`}
                           >
                             -
                           </button>
@@ -932,7 +1042,53 @@ export default function DraftRoomPage() {
 
                               return initialNominationAmount >= maxBid;
                             })()}
-                            className="rounded bg-gray-200 px-3 py-1 hover:bg-gray-300 disabled:bg-gray-100 disabled:text-gray-400"
+                            className={`rounded px-3 py-1 ${(() => {
+                              if (!user) return "bg-gray-100 text-gray-400";
+                              const userTeam = teams.find(
+                                (team) => team.ownerId === user.id,
+                              );
+                              if (!userTeam) return "bg-gray-100 text-gray-400";
+                              const remainingBudget =
+                                userTeam.totalBudget -
+                                (teamBudgets[userTeam.id] ?? 0);
+                              const roster = rosters.find(
+                                (r) => r.teamId === userTeam.id,
+                              );
+                              const rosterPositions = [
+                                "QB",
+                                "RB1",
+                                "RB2",
+                                "WR1",
+                                "WR2",
+                                "TE",
+                                "Flex1",
+                                "Flex2",
+                                "Bench1",
+                                "Bench2",
+                                "Bench3",
+                                "Bench4",
+                                "Bench5",
+                                "Bench6",
+                              ];
+                              const filledSpots = roster
+                                ? rosterPositions.filter(
+                                    (pos) =>
+                                      roster[pos as keyof typeof roster] !==
+                                      null,
+                                  ).length
+                                : 0;
+                              const totalRosterSpots = 14;
+                              const remainingSpots =
+                                totalRosterSpots - filledSpots;
+                              const reserveAmount = remainingSpots - 1;
+                              const maxBid = Math.max(
+                                0,
+                                remainingBudget - reserveAmount,
+                              );
+                              return bidAmount >= maxBid
+                                ? "bg-gray-100 text-gray-400"
+                                : "bg-gray-200 hover:bg-gray-300";
+                            })()}`}
                           >
                             +
                           </button>
@@ -1011,7 +1167,26 @@ export default function DraftRoomPage() {
                     </label>
                     <button
                       onClick={() => adjustBidAmount(-bidIncrement)}
-                      className="rounded bg-gray-200 px-3 py-1 hover:bg-gray-300"
+                      disabled={(() => {
+                        if (!user) return true;
+                        const userTeam = teams.find(
+                          (team) => team.ownerId === user.id,
+                        );
+                        if (!userTeam) return true;
+                        const minBid = (currentBid?.amount ?? 0) + 1;
+                        return bidAmount <= minBid;
+                      })()}
+                      className={`rounded px-3 py-1 ${(() => {
+                        if (!user) return "bg-gray-100 text-gray-400";
+                        const userTeam = teams.find(
+                          (team) => team.ownerId === user.id,
+                        );
+                        if (!userTeam) return "bg-gray-100 text-gray-400";
+                        const minBid = (currentBid?.amount ?? 0) + 1;
+                        return bidAmount <= minBid
+                          ? "bg-gray-100 text-gray-400"
+                          : "bg-gray-200 hover:bg-gray-300";
+                      })()}`}
                     >
                       -
                     </button>
@@ -1020,40 +1195,263 @@ export default function DraftRoomPage() {
                     </span>
                     <button
                       onClick={() => adjustBidAmount(bidIncrement)}
-                      className="rounded bg-gray-200 px-3 py-1 hover:bg-gray-300"
+                      disabled={(() => {
+                        if (!user) return true;
+                        const userTeam = teams.find(
+                          (team) => team.ownerId === user.id,
+                        );
+                        if (!userTeam) return true;
+                        const remainingBudget =
+                          userTeam.totalBudget -
+                          (teamBudgets[userTeam.id] ?? 0);
+                        const roster = rosters.find(
+                          (r) => r.teamId === userTeam.id,
+                        );
+                        const rosterPositions = [
+                          "QB",
+                          "RB1",
+                          "RB2",
+                          "WR1",
+                          "WR2",
+                          "TE",
+                          "Flex1",
+                          "Flex2",
+                          "Bench1",
+                          "Bench2",
+                          "Bench3",
+                          "Bench4",
+                          "Bench5",
+                          "Bench6",
+                        ];
+                        const filledSpots = roster
+                          ? rosterPositions.filter(
+                              (pos) =>
+                                roster[pos as keyof typeof roster] !== null,
+                            ).length
+                          : 0;
+                        const totalRosterSpots = 14;
+                        const remainingSpots = totalRosterSpots - filledSpots;
+                        const reserveAmount = remainingSpots - 1;
+                        const maxBid = Math.max(
+                          0,
+                          remainingBudget - reserveAmount,
+                        );
+                        return bidAmount >= maxBid;
+                      })()}
+                      className={`rounded px-3 py-1 ${(() => {
+                        if (!user) return "bg-gray-100 text-gray-400";
+                        const userTeam = teams.find(
+                          (team) => team.ownerId === user.id,
+                        );
+                        if (!userTeam) return "bg-gray-100 text-gray-400";
+                        const remainingBudget =
+                          userTeam.totalBudget -
+                          (teamBudgets[userTeam.id] ?? 0);
+                        const roster = rosters.find(
+                          (r) => r.teamId === userTeam.id,
+                        );
+                        const rosterPositions = [
+                          "QB",
+                          "RB1",
+                          "RB2",
+                          "WR1",
+                          "WR2",
+                          "TE",
+                          "Flex1",
+                          "Flex2",
+                          "Bench1",
+                          "Bench2",
+                          "Bench3",
+                          "Bench4",
+                          "Bench5",
+                          "Bench6",
+                        ];
+                        const filledSpots = roster
+                          ? rosterPositions.filter(
+                              (pos) =>
+                                roster[pos as keyof typeof roster] !== null,
+                            ).length
+                          : 0;
+                        const totalRosterSpots = 14;
+                        const remainingSpots = totalRosterSpots - filledSpots;
+                        const reserveAmount = remainingSpots - 1;
+                        const maxBid = Math.max(
+                          0,
+                          remainingBudget - reserveAmount,
+                        );
+                        return bidAmount >= maxBid
+                          ? "bg-gray-100 text-gray-400"
+                          : "bg-gray-200 hover:bg-gray-300";
+                      })()}`}
                     >
                       +
                     </button>
                     <button
                       onClick={handleBidSubmit}
-                      disabled={Boolean(
-                        !selectedPlayer ||
-                          (currentBid && bidAmount <= currentBid.amount) ||
-                          isSelling,
-                      )}
-                      className={`rounded px-4 py-2 text-white ${
-                        !selectedPlayer ||
-                        (currentBid && bidAmount <= currentBid.amount) ||
-                        isSelling
+                      disabled={(() => {
+                        if (!user || !selectedPlayer || isSelling) return true;
+
+                        // Find the user's team
+                        const userTeam = teams.find(
+                          (team) => team.ownerId === user.id,
+                        );
+                        if (!userTeam) return true;
+
+                        // Calculate remaining budget and roster spots
+                        const remainingBudget =
+                          userTeam.totalBudget -
+                          (teamBudgets[userTeam.id] ?? 0);
+                        const roster = rosters.find(
+                          (r) => r.teamId === userTeam.id,
+                        );
+                        const rosterPositions = [
+                          "QB",
+                          "RB1",
+                          "RB2",
+                          "WR1",
+                          "WR2",
+                          "TE",
+                          "Flex1",
+                          "Flex2",
+                          "Bench1",
+                          "Bench2",
+                          "Bench3",
+                          "Bench4",
+                          "Bench5",
+                          "Bench6",
+                        ];
+                        const filledSpots = roster
+                          ? rosterPositions.filter(
+                              (pos) =>
+                                roster[pos as keyof typeof roster] !== null,
+                            ).length
+                          : 0;
+                        const totalRosterSpots = 14;
+                        const remainingSpots = totalRosterSpots - filledSpots;
+                        const reserveAmount = remainingSpots - 1;
+                        const maxBid = Math.max(
+                          0,
+                          remainingBudget - reserveAmount,
+                        );
+
+                        // Validate bid amount
+                        const minBid = (currentBid?.amount ?? 0) + 1;
+                        return bidAmount < minBid || bidAmount > maxBid;
+                      })()}
+                      className={`rounded px-4 py-2 text-white ${(() => {
+                        if (!user || !selectedPlayer || isSelling)
+                          return "cursor-not-allowed bg-gray-400";
+                        const userTeam = teams.find(
+                          (team) => team.ownerId === user.id,
+                        );
+                        if (!userTeam) return "cursor-not-allowed bg-gray-400";
+                        const remainingBudget =
+                          userTeam.totalBudget -
+                          (teamBudgets[userTeam.id] ?? 0);
+                        const roster = rosters.find(
+                          (r) => r.teamId === userTeam.id,
+                        );
+                        const rosterPositions = [
+                          "QB",
+                          "RB1",
+                          "RB2",
+                          "WR1",
+                          "WR2",
+                          "TE",
+                          "Flex1",
+                          "Flex2",
+                          "Bench1",
+                          "Bench2",
+                          "Bench3",
+                          "Bench4",
+                          "Bench5",
+                          "Bench6",
+                        ];
+                        const filledSpots = roster
+                          ? rosterPositions.filter(
+                              (pos) =>
+                                roster[pos as keyof typeof roster] !== null,
+                            ).length
+                          : 0;
+                        const totalRosterSpots = 14;
+                        const remainingSpots = totalRosterSpots - filledSpots;
+                        const reserveAmount = remainingSpots - 1;
+                        const maxBid = Math.max(
+                          0,
+                          remainingBudget - reserveAmount,
+                        );
+                        const minBid = (currentBid?.amount ?? 0) + 1;
+                        return bidAmount < minBid || bidAmount > maxBid
                           ? "cursor-not-allowed bg-gray-400"
-                          : "bg-blue-500 hover:bg-blue-600"
-                      }`}
+                          : "bg-blue-500 hover:bg-blue-600";
+                      })()}`}
                     >
                       {!selectedPlayer
                         ? "Select a Player"
                         : isSelling
                           ? "Bidding Closed"
-                          : currentBid && bidAmount <= currentBid.amount
-                            ? `Bid must be > $${currentBid.amount}`
-                            : "Place Bid"}
+                          : (() => {
+                              if (!user) return "Not Logged In";
+                              const userTeam = teams.find(
+                                (team) => team.ownerId === user.id,
+                              );
+                              if (!userTeam) return "No Team";
+                              const remainingBudget =
+                                userTeam.totalBudget -
+                                (teamBudgets[userTeam.id] ?? 0);
+                              const roster = rosters.find(
+                                (r) => r.teamId === userTeam.id,
+                              );
+                              const rosterPositions = [
+                                "QB",
+                                "RB1",
+                                "RB2",
+                                "WR1",
+                                "WR2",
+                                "TE",
+                                "Flex1",
+                                "Flex2",
+                                "Bench1",
+                                "Bench2",
+                                "Bench3",
+                                "Bench4",
+                                "Bench5",
+                                "Bench6",
+                              ];
+                              const filledSpots = roster
+                                ? rosterPositions.filter(
+                                    (pos) =>
+                                      roster[pos as keyof typeof roster] !==
+                                      null,
+                                  ).length
+                                : 0;
+                              const totalRosterSpots = 14;
+                              const remainingSpots =
+                                totalRosterSpots - filledSpots;
+                              const reserveAmount = remainingSpots - 1;
+                              const maxBid = Math.max(
+                                0,
+                                remainingBudget - reserveAmount,
+                              );
+                              const minBid = (currentBid?.amount ?? 0) + 1;
+                              if (bidAmount < minBid)
+                                return `Bid must be > $${minBid}`;
+                              if (bidAmount > maxBid)
+                                return `Max bid is $${maxBid}`;
+                              return "Place Bid";
+                            })()}
                     </button>
                   </div>
 
                   {currentBid && (
                     <button
                       onClick={() => setShowCountdown(true)}
-                      className="rounded bg-yellow-500 px-4 py-2 text-white hover:bg-yellow-600"
-                      disabled={showCountdown}
+                      className={`rounded px-4 py-2 text-white ${
+                        showCountdown || isSelling
+                          ? "cursor-not-allowed bg-gray-400"
+                          : "bg-yellow-500 hover:bg-yellow-600"
+                      }`}
+                      disabled={showCountdown || isSelling}
                     >
                       Trigger Countdown
                     </button>

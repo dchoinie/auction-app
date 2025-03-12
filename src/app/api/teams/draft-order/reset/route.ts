@@ -2,6 +2,7 @@ import { db } from "~/server/db";
 import { teams } from "~/server/db/schema";
 import { auth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
+import { eq } from "drizzle-orm";
 
 export async function POST() {
   try {
@@ -11,7 +12,10 @@ export async function POST() {
     }
 
     // Reset all teams' draft orders to null
-    await db.update(teams).set({ draftOrder: null });
+    await db
+      .update(teams)
+      .set({ draftOrder: null })
+      .where(eq(teams.id, teams.id));
 
     return NextResponse.json({ success: true });
   } catch (error) {
