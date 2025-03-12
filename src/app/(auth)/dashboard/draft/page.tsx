@@ -152,11 +152,9 @@ export default function DraftRoomPage() {
   const [isAssigningPlayer, setIsAssigningPlayer] = useState(false);
   const [isSelling, setIsSelling] = useState(false);
   const [nominationError, setNominationError] = useState<string | null>(null);
-  const [lastHeartbeat, setLastHeartbeat] = useState<number>(Date.now());
   const [connectionStatus, setConnectionStatus] = useState<
     "connected" | "disconnected" | "reconnecting"
   >("disconnected");
-  const heartbeatInterval = useRef<NodeJS.Timeout>();
   const [onlineUsers, setOnlineUsers] = useState<Set<string>>(new Set());
 
   // Add effect to update online users when Clerk session changes
@@ -173,7 +171,6 @@ export default function DraftRoomPage() {
       console.log("Connected to PartyKit");
       setIsConnected(true);
       setConnectionStatus("connected");
-      setLastHeartbeat(Date.now());
       // Server will automatically send init_state after connection
     },
     onClose() {
@@ -187,9 +184,6 @@ export default function DraftRoomPage() {
         const data = JSON.parse(event.data as string) as DraftMessage;
 
         switch (data.type) {
-          case "heartbeat":
-            setLastHeartbeat(Date.now());
-            break;
           case "init_state":
             // Always set users if they exist, regardless of current bid
             if (data.state?.users) {
@@ -657,56 +651,17 @@ export default function DraftRoomPage() {
         }),
       );
     }
-    if (heartbeatInterval.current) {
-      clearInterval(heartbeatInterval.current);
-    }
   }, [socket, user]);
-
-  // Set up heartbeat interval
-  useEffect(() => {
-    if (isConnected && user) {
-      heartbeatInterval.current = setInterval(() => {
-        socket.send(
-          JSON.stringify({
-            type: "heartbeat",
-            userId: user.id,
-          }),
-        );
-      }, 30000);
-    }
-
-    return () => {
-      if (heartbeatInterval.current) {
-        clearInterval(heartbeatInterval.current);
-      }
-    };
-  }, [isConnected, socket, user]);
 
   // Clean up on unmount
   useEffect(() => {
     return cleanup;
   }, [cleanup]);
 
-  // Update connection status based on last heartbeat
+  // Update connection status based on socket state
   useEffect(() => {
-    const checkHeartbeat = () => {
-      const now = Date.now();
-      const timeSinceLastHeartbeat = now - lastHeartbeat;
-
-      if (timeSinceLastHeartbeat > 90000) {
-        // 90 seconds without heartbeat
-        setConnectionStatus("disconnected");
-      } else if (timeSinceLastHeartbeat > 60000) {
-        // 60 seconds without heartbeat
-        setConnectionStatus("reconnecting");
-      } else {
-        setConnectionStatus("connected");
-      }
-    };
-
-    const interval = setInterval(checkHeartbeat, 30000);
-    return () => clearInterval(interval);
-  }, [lastHeartbeat]);
+    setConnectionStatus(isConnected ? "connected" : "disconnected");
+  }, [isConnected]);
 
   // Update the connection status indicator in the UI
   const getConnectionStatusColor = () => {

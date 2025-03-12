@@ -52,7 +52,6 @@ export default class DraftRoom {
 
   connections = new Set<Connection>();
   activeUsers = new Map<string, DraftUser>();
-  heartbeatIntervals = new Map<string, NodeJS.Timeout>();
   currentState: DraftState = {
     selectedPlayer: null,
     currentBid: null,
@@ -60,33 +59,6 @@ export default class DraftRoom {
 
   constructor(readonly party: Party) {
     console.log("Draft room created:", party.id);
-  }
-
-  private startHeartbeat(userId: string, conn: Connection) {
-    // Clear any existing heartbeat
-    this.clearHeartbeat(userId);
-
-    // Send initial heartbeat
-    conn.send(JSON.stringify({ type: "heartbeat" }));
-
-    // Set up interval to send heartbeat every 30 seconds
-    const interval = setInterval(() => {
-      if (this.connections.has(conn)) {
-        conn.send(JSON.stringify({ type: "heartbeat" }));
-      } else {
-        this.clearHeartbeat(userId);
-      }
-    }, 30000);
-
-    this.heartbeatIntervals.set(userId, interval);
-  }
-
-  private clearHeartbeat(userId: string) {
-    const interval = this.heartbeatIntervals.get(userId);
-    if (interval) {
-      clearInterval(interval);
-      this.heartbeatIntervals.delete(userId);
-    }
   }
 
   async onStart() {
@@ -137,10 +109,8 @@ export default class DraftRoom {
             const userWithConnection = {
               ...data.user,
               connectionId: sender.id,
-              lastHeartbeat: Date.now(),
             };
             this.activeUsers.set(data.user.id, userWithConnection);
-            this.startHeartbeat(data.user.id, sender);
 
             // Broadcast to all users that someone joined, including sender
             this.party.broadcast(
@@ -206,16 +176,6 @@ export default class DraftRoom {
             );
           }
           break;
-
-        case "heartbeat":
-          if (data.userId) {
-            const user = this.activeUsers.get(data.userId);
-            if (user) {
-              user.lastHeartbeat = Date.now();
-              this.activeUsers.set(data.userId, user);
-            }
-          }
-          break;
       }
     } catch (error) {
       console.error("Error in onMessage:", error, "Raw message:", message);
@@ -263,7 +223,6 @@ export default class DraftRoom {
     for (const [userId, user] of this.activeUsers.entries()) {
       if (user.connectionId === conn.id) {
         this.activeUsers.delete(userId);
-        this.clearHeartbeat(userId);
 
         // Broadcast to all that user left
         this.party.broadcast(
