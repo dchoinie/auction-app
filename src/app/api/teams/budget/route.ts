@@ -8,7 +8,17 @@ export async function GET() {
     const budgets = await db
       .select({
         teamId: nflPlayers.assignedTeamId,
-        spentAmount: sql<number>`COALESCE(SUM(${nflPlayers.draftedAmount}), 0)::integer`,
+        spentAmount: sql<number>`
+          COALESCE(
+            SUM(
+              CASE 
+                WHEN ${nflPlayers.isKeeper} = true THEN ${nflPlayers.draftedAmount}
+                ELSE ${nflPlayers.draftedAmount}
+              END
+            ), 
+            0
+          )::integer
+        `,
       })
       .from(nflPlayers)
       .where(sql`${nflPlayers.assignedTeamId} IS NOT NULL`)
