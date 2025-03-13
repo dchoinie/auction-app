@@ -1,4 +1,5 @@
 import type { Party, Connection, Request } from "partykit/server";
+import * as PartyKit from "partykit/server";
 
 interface DraftUser {
   id: string;
@@ -48,7 +49,7 @@ interface DraftMessage {
   state?: DraftState;
 }
 
-export default class DraftRoom {
+export default class DraftRoom implements PartyKit.Server {
   static async onBeforeConnect(_req: Request) {
     // We can add auth validation later if needed
     return { success: true };
@@ -63,7 +64,7 @@ export default class DraftRoom {
     currentNominatorDraftOrder: 1,
   };
 
-  constructor(readonly party: Party) {
+  constructor(readonly party: PartyKit.Party) {
     console.log("Draft room created:", party.id);
   }
 
@@ -73,7 +74,7 @@ export default class DraftRoom {
     this.broadcastUsers();
   }
 
-  async onConnect(conn: Connection) {
+  onConnect(conn: Connection, ctx: PartyKit.ConnectionContext) {
     this.connections.add(conn);
     console.log("New connection:", conn.id);
 
@@ -91,6 +92,26 @@ export default class DraftRoom {
         type: "init_state",
         state: this.currentState,
       }),
+    );
+  }
+
+  async onRequest(req: Request): Promise<Response> {
+    const url = new URL(req.url);
+
+    // Return a basic response for now
+    return new Response(
+      JSON.stringify({
+        status: "ok",
+        message: "Draft room server is running",
+        room: this.party.id,
+        users: Array.from(this.activeUsers.values()),
+        state: this.currentState,
+      }),
+      {
+        headers: {
+          "Content-Type": "application/json",
+        },
+      },
     );
   }
 
