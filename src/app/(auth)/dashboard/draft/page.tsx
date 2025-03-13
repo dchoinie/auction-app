@@ -288,6 +288,13 @@ export default function DraftRoomPage() {
                 setCurrentNominator(data.state.currentNominatorDraftOrder);
                 // Note: We don't set currentRound here as it's managed by the store
               }
+            } else {
+              // Handle clearing the selected player
+              setSelectedPlayer(null);
+              setCurrentBid(null);
+              setBidHistory([]);
+              setBidAmount(1);
+              setIsPlayerConfirmed(false);
             }
             break;
           case "new_bid":
@@ -466,6 +473,10 @@ export default function DraftRoomPage() {
         JSON.stringify({
           type: "select_player",
           player,
+          state: {
+            currentRound,
+            currentNominatorDraftOrder,
+          },
         }),
       );
     }

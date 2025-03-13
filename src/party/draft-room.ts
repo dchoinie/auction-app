@@ -178,6 +178,17 @@ export default class DraftRoom {
                 state: this.currentState,
               }),
             );
+          } else {
+            // Handle clearing the selected player
+            this.currentState.selectedPlayer = null;
+            this.currentState.currentBid = null;
+            this.party.broadcast(
+              JSON.stringify({
+                type: "select_player",
+                player: null,
+                state: this.currentState,
+              }),
+            );
           }
           break;
 
