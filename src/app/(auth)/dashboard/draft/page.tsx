@@ -999,7 +999,7 @@ export default function DraftRoomPage() {
                 <div className="absolute -left-4 -top-4 h-8 w-8 animate-pulse rounded-full bg-blue-200 opacity-50 blur-xl sm:h-12 sm:w-12"></div>
                 <div className="absolute -bottom-4 -right-4 h-8 w-8 animate-pulse rounded-full bg-blue-200 opacity-50 blur-xl sm:h-12 sm:w-12"></div>
 
-                <div className="flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
+                <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
                   <div className="relative w-full sm:w-auto">
                     <div className="animate-pulse-slow absolute -inset-1 rounded-lg bg-gradient-to-r from-blue-600 via-sky-400 to-blue-600 opacity-20 blur"></div>
                     <div className="relative">
@@ -1033,9 +1033,9 @@ export default function DraftRoomPage() {
                       </div>
                     </div>
                   ) : (
-                    <div className="flex w-full flex-col gap-2 sm:flex-row">
-                      <div className="flex flex-wrap items-center gap-2 sm:gap-4">
-                        <div className="flex items-center gap-2">
+                    <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
+                      <div className="flex flex-col items-center gap-2 sm:flex-row sm:items-center sm:gap-4">
+                        <div className="flex w-full items-center justify-center gap-2">
                           <button
                             onClick={() =>
                               setInitialNominationAmount((prev) =>
@@ -1250,7 +1250,7 @@ export default function DraftRoomPage() {
                               }),
                             );
                           }}
-                          className="rounded-lg bg-gradient-to-r from-green-500 to-green-600 px-4 py-2 text-sm text-white shadow-lg transition-all hover:from-green-600 hover:to-green-700 hover:shadow-xl sm:px-6 sm:py-3 sm:text-base"
+                          className="w-full whitespace-nowrap rounded-lg bg-gradient-to-r from-green-500 to-green-600 px-4 py-2 text-sm text-white shadow-lg transition-all hover:from-green-600 hover:to-green-700 hover:shadow-xl sm:w-auto sm:px-6 sm:py-3 sm:text-base"
                         >
                           Confirm Selection
                         </button>
@@ -1264,7 +1264,7 @@ export default function DraftRoomPage() {
                               }),
                             );
                           }}
-                          className="rounded-lg bg-gradient-to-r from-gray-500 to-gray-600 px-4 py-2 text-sm text-white shadow-lg transition-all hover:from-gray-600 hover:to-gray-700 hover:shadow-xl sm:px-6 sm:py-3 sm:text-base"
+                          className="w-full whitespace-nowrap rounded-lg bg-gradient-to-r from-gray-500 to-gray-600 px-4 py-2 text-sm text-white shadow-lg transition-all hover:from-gray-600 hover:to-gray-700 hover:shadow-xl sm:w-auto sm:px-6 sm:py-3 sm:text-base"
                         >
                           Cancel Selection
                         </button>
