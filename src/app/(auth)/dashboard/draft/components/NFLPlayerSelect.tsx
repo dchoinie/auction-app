@@ -48,13 +48,16 @@ export default function NFLPlayerSelect({
 
   const filteredPlayers = !query
     ? sortedPlayers
-    : sortedPlayers.filter(
-        (player) =>
-          player.firstName.toLowerCase().includes(query.toLowerCase()) ||
-          player.lastName.toLowerCase().includes(query.toLowerCase()) ||
-          player.nflTeamName.toLowerCase().includes(query.toLowerCase()) ||
-          player.position.toLowerCase().includes(query.toLowerCase()),
-      );
+    : sortedPlayers.filter((player) => {
+        if (!player) return false;
+        const searchQuery = query.toLowerCase().trim();
+        return (
+          (player.firstName?.toLowerCase() ?? "").includes(searchQuery) ||
+          (player.lastName?.toLowerCase() ?? "").includes(searchQuery) ||
+          (player.nflTeamName?.toLowerCase() ?? "").includes(searchQuery) ||
+          (player.position?.toLowerCase() ?? "").includes(searchQuery)
+        );
+      });
 
   // Close dropdown when clicking outside
   useEffect(() => {
