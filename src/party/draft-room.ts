@@ -27,6 +27,8 @@ interface DraftBid {
 interface DraftState {
   selectedPlayer: NFLPlayer | null;
   currentBid: DraftBid | null;
+  currentRound: number;
+  currentNominatorDraftOrder: number;
 }
 
 interface DraftMessage {
@@ -37,11 +39,13 @@ interface DraftMessage {
     | "new_bid"
     | "user_joined"
     | "user_left"
-    | "heartbeat";
+    | "heartbeat"
+    | "update_nomination";
   user?: DraftUser;
   userId?: string;
   player?: NFLPlayer;
   bid?: DraftBid;
+  state?: DraftState;
 }
 
 export default class DraftRoom {
@@ -55,6 +59,8 @@ export default class DraftRoom {
   currentState: DraftState = {
     selectedPlayer: null,
     currentBid: null,
+    currentRound: 1,
+    currentNominatorDraftOrder: 1,
   };
 
   constructor(readonly party: Party) {
@@ -83,10 +89,7 @@ export default class DraftRoom {
     conn.send(
       JSON.stringify({
         type: "init_state",
-        state: {
-          selectedPlayer: this.currentState.selectedPlayer,
-          currentBid: this.currentState.currentBid,
-        },
+        state: this.currentState,
       }),
     );
   }
@@ -172,6 +175,21 @@ export default class DraftRoom {
               JSON.stringify({
                 type: "select_player",
                 player: data.player,
+                state: this.currentState,
+              }),
+            );
+          }
+          break;
+
+        case "update_nomination":
+          if (data.state) {
+            this.currentState.currentRound = data.state.currentRound;
+            this.currentState.currentNominatorDraftOrder =
+              data.state.currentNominatorDraftOrder;
+            this.party.broadcast(
+              JSON.stringify({
+                type: "update_nomination",
+                state: this.currentState,
               }),
             );
           }
@@ -197,6 +215,7 @@ export default class DraftRoom {
           type: "select_player",
           player: this.currentState.selectedPlayer,
           bid: this.currentState.currentBid,
+          state: this.currentState,
         }),
       );
     }

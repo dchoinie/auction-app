@@ -61,7 +61,8 @@ interface DraftMessage {
     | "init_state"
     | "user_joined"
     | "user_left"
-    | "heartbeat";
+    | "heartbeat"
+    | "update_nomination";
   users?: DraftUser[];
   message?: string;
   player?: NFLPlayer;
@@ -70,6 +71,8 @@ interface DraftMessage {
     selectedPlayer: NFLPlayer | null;
     currentBid: DraftBid | null;
     users: DraftUser[];
+    currentNominatorDraftOrder: number;
+    currentRound: number;
   };
   user?: DraftUser;
   userId?: string;
@@ -263,6 +266,12 @@ export default function DraftRoomPage() {
                 ].slice(0, 10),
               );
             }
+
+            // Sync nomination state
+            if (data.state) {
+              setCurrentNominator(data.state.currentNominatorDraftOrder);
+              // Note: We don't set currentRound here as it's managed by the store
+            }
             break;
           case "welcome":
             console.log("Welcome message:", data.message);
@@ -273,6 +282,12 @@ export default function DraftRoomPage() {
               setCurrentBid(null);
               setBidAmount(1);
               setIsPlayerConfirmed(false); // Reset confirmation when a new player is selected
+
+              // Sync nomination state
+              if (data.state) {
+                setCurrentNominator(data.state.currentNominatorDraftOrder);
+                // Note: We don't set currentRound here as it's managed by the store
+              }
             }
             break;
           case "new_bid":
@@ -316,6 +331,12 @@ export default function DraftRoomPage() {
                 newSet.delete(data.userId!);
                 return newSet;
               });
+            }
+            break;
+          case "update_nomination":
+            if (data.state) {
+              setCurrentNominator(data.state.currentNominatorDraftOrder);
+              // Note: We don't set currentRound here as it's managed by the store
             }
             break;
         }
@@ -679,6 +700,10 @@ export default function DraftRoomPage() {
           type: "player_drafted",
           player: selectedPlayer,
           bid: currentBid,
+          state: {
+            currentRound,
+            currentNominatorDraftOrder,
+          },
         }),
       );
 
@@ -708,6 +733,8 @@ export default function DraftRoomPage() {
     teams,
     rosters,
     addNotification,
+    currentRound,
+    currentNominatorDraftOrder,
   ]);
 
   const handleCountdownCancel = useCallback(() => {
