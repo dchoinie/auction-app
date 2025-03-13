@@ -1,0 +1,1 @@
+ALTER TABLE "auction-app_nfl_player" ALTER COLUMN "nfl_team_name" DROP NOT NULL;

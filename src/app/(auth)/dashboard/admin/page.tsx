@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from "react";
 import Container from "~/components/Container";
-import PlayerImport from "./components/PlayerImport";
 import ManualPlayerAssign from "./components/ManualPlayerAssign";
 import { useUserRole } from "~/hooks/use-user-role";
 import { hasPermission } from "~/lib/permissions";
@@ -15,6 +14,10 @@ interface Team {
   name: string;
   ownerName: string;
   draftOrder: number | null;
+}
+
+interface SyncResponse {
+  message: string;
 }
 
 function TeamListItem({
@@ -48,6 +51,7 @@ export default function AdminPage() {
   >({});
   const [isUpdating, setIsUpdating] = useState(false);
   const [isResettingDraft, setIsResettingDraft] = useState(false);
+  const [isSyncingPlayers, setIsSyncingPlayers] = useState(false);
   const [updateMessage, setUpdateMessage] = useState<{
     type: "success" | "error";
     text: string;
@@ -194,6 +198,43 @@ export default function AdminPage() {
     }
   };
 
+  const handleSyncPlayers = async () => {
+    if (
+      !confirm(
+        "Are you sure you want to sync NFL players? This will replace all existing players in the database.",
+      )
+    ) {
+      return;
+    }
+
+    setIsSyncingPlayers(true);
+    setUpdateMessage(null);
+
+    try {
+      const response = await fetch("/api/nfl-players/sync", {
+        method: "POST",
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to sync players");
+      }
+
+      const data = (await response.json()) as SyncResponse;
+      setUpdateMessage({
+        type: "success",
+        text: data.message,
+      });
+    } catch (error) {
+      console.error("Error syncing players:", error);
+      setUpdateMessage({
+        type: "error",
+        text: "Failed to sync players",
+      });
+    } finally {
+      setIsSyncingPlayers(false);
+    }
+  };
+
   const hasUnsavedChanges = Object.keys(draftOrderChanges).length > 0;
 
   return (
@@ -272,9 +313,56 @@ export default function AdminPage() {
         </div>
       </div>
 
-      {/* Player Import Section */}
-      <div className="mb-8">
-        <PlayerImport />
+      {/* Player Management Section */}
+      <div className="mb-8 rounded-lg border p-4">
+        <div className="mb-4 flex items-center justify-between">
+          <h2 className="text-xl font-semibold">Player Management</h2>
+          <button
+            onClick={handleSyncPlayers}
+            disabled={isSyncingPlayers}
+            className={`flex items-center gap-2 rounded-md px-4 py-2 text-white ${
+              isSyncingPlayers
+                ? "cursor-not-allowed bg-blue-400"
+                : "bg-blue-500 hover:bg-blue-600"
+            }`}
+          >
+            {isSyncingPlayers ? (
+              <>
+                <svg
+                  className="h-4 w-4 animate-spin"
+                  xmlns="http://www.w3.org/2000/svg"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                >
+                  <circle
+                    className="opacity-25"
+                    cx="12"
+                    cy="12"
+                    r="10"
+                    stroke="currentColor"
+                    strokeWidth="4"
+                  ></circle>
+                  <path
+                    className="opacity-75"
+                    fill="currentColor"
+                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                  ></path>
+                </svg>
+                <span>Syncing Players...</span>
+              </>
+            ) : (
+              "Sync NFL Players"
+            )}
+          </button>
+        </div>
+        {isSyncingPlayers && (
+          <div className="mb-4 rounded-lg bg-blue-50 p-4 text-blue-700">
+            <p className="text-sm">
+              Please wait while we sync NFL players. This may take a few moments
+              as we process a large amount of data.
+            </p>
+          </div>
+        )}
       </div>
 
       {/* Manual Player Assignment Section */}

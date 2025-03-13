@@ -50,7 +50,7 @@ export const nflPlayers = createTable(
     firstName: varchar("first_name", { length: 100 }).notNull(),
     lastName: varchar("last_name", { length: 100 }).notNull(),
     position: positionEnum("position").notNull(),
-    nflTeamName: varchar("nfl_team_name", { length: 100 }).notNull(),
+    nflTeamName: varchar("nfl_team_name", { length: 100 }),
     assignedTeamId: integer("assigned_team_id").references(() => teams.id),
     draftedAmount: integer("drafted_amount"),
     isKeeper: boolean("is_keeper").default(false),

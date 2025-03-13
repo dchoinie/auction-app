@@ -1,0 +1,597 @@
+{
+  "id": "10ef3b5c-0e56-4666-919a-8ee545a0f152",
+  "prevId": "3baf1439-73de-4108-a6b5-03633179862f",
+  "version": "7",
+  "dialect": "postgresql",
+  "tables": {
+    "public.auction-app_nfl_player": {
+      "name": "auction-app_nfl_player",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "first_name": {
+          "name": "first_name",
+          "type": "varchar(100)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "last_name": {
+          "name": "last_name",
+          "type": "varchar(100)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "position": {
+          "name": "position",
+          "type": "position",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "nfl_team_name": {
+          "name": "nfl_team_name",
+          "type": "varchar(100)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "assigned_team_id": {
+          "name": "assigned_team_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "drafted_amount": {
+          "name": "drafted_amount",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "is_keeper": {
+          "name": "is_keeper",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": false,
+          "default": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "CURRENT_TIMESTAMP"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "position_idx": {
+          "name": "position_idx",
+          "columns": [
+            {
+              "expression": "position",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "nfl_team_idx": {
+          "name": "nfl_team_idx",
+          "columns": [
+            {
+              "expression": "nfl_team_name",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "assigned_team_idx": {
+          "name": "assigned_team_idx",
+          "columns": [
+            {
+              "expression": "assigned_team_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "player_name_idx": {
+          "name": "player_name_idx",
+          "columns": [
+            {
+              "expression": "first_name",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "last_name",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "auction-app_nfl_player_assigned_team_id_auction-app_team_id_fk": {
+          "name": "auction-app_nfl_player_assigned_team_id_auction-app_team_id_fk",
+          "tableFrom": "auction-app_nfl_player",
+          "tableTo": "auction-app_team",
+          "columnsFrom": [
+            "assigned_team_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {}
+    },
+    "public.auction-app_roster": {
+      "name": "auction-app_roster",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "team_id": {
+          "name": "team_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "qb": {
+          "name": "qb",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "rb1": {
+          "name": "rb1",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "rb2": {
+          "name": "rb2",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "wr1": {
+          "name": "wr1",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "wr2": {
+          "name": "wr2",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "te": {
+          "name": "te",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "flex1": {
+          "name": "flex1",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "flex2": {
+          "name": "flex2",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "bench1": {
+          "name": "bench1",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "bench2": {
+          "name": "bench2",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "bench3": {
+          "name": "bench3",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "bench4": {
+          "name": "bench4",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "bench5": {
+          "name": "bench5",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "bench6": {
+          "name": "bench6",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "CURRENT_TIMESTAMP"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "team_id_idx": {
+          "name": "team_id_idx",
+          "columns": [
+            {
+              "expression": "team_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "auction-app_roster_team_id_auction-app_team_id_fk": {
+          "name": "auction-app_roster_team_id_auction-app_team_id_fk",
+          "tableFrom": "auction-app_roster",
+          "tableTo": "auction-app_team",
+          "columnsFrom": [
+            "team_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "auction-app_roster_qb_auction-app_nfl_player_id_fk": {
+          "name": "auction-app_roster_qb_auction-app_nfl_player_id_fk",
+          "tableFrom": "auction-app_roster",
+          "tableTo": "auction-app_nfl_player",
+          "columnsFrom": [
+            "qb"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "auction-app_roster_rb1_auction-app_nfl_player_id_fk": {
+          "name": "auction-app_roster_rb1_auction-app_nfl_player_id_fk",
+          "tableFrom": "auction-app_roster",
+          "tableTo": "auction-app_nfl_player",
+          "columnsFrom": [
+            "rb1"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "auction-app_roster_rb2_auction-app_nfl_player_id_fk": {
+          "name": "auction-app_roster_rb2_auction-app_nfl_player_id_fk",
+          "tableFrom": "auction-app_roster",
+          "tableTo": "auction-app_nfl_player",
+          "columnsFrom": [
+            "rb2"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "auction-app_roster_wr1_auction-app_nfl_player_id_fk": {
+          "name": "auction-app_roster_wr1_auction-app_nfl_player_id_fk",
+          "tableFrom": "auction-app_roster",
+          "tableTo": "auction-app_nfl_player",
+          "columnsFrom": [
+            "wr1"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "auction-app_roster_wr2_auction-app_nfl_player_id_fk": {
+          "name": "auction-app_roster_wr2_auction-app_nfl_player_id_fk",
+          "tableFrom": "auction-app_roster",
+          "tableTo": "auction-app_nfl_player",
+          "columnsFrom": [
+            "wr2"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "auction-app_roster_te_auction-app_nfl_player_id_fk": {
+          "name": "auction-app_roster_te_auction-app_nfl_player_id_fk",
+          "tableFrom": "auction-app_roster",
+          "tableTo": "auction-app_nfl_player",
+          "columnsFrom": [
+            "te"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "auction-app_roster_flex1_auction-app_nfl_player_id_fk": {
+          "name": "auction-app_roster_flex1_auction-app_nfl_player_id_fk",
+          "tableFrom": "auction-app_roster",
+          "tableTo": "auction-app_nfl_player",
+          "columnsFrom": [
+            "flex1"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "auction-app_roster_flex2_auction-app_nfl_player_id_fk": {
+          "name": "auction-app_roster_flex2_auction-app_nfl_player_id_fk",
+          "tableFrom": "auction-app_roster",
+          "tableTo": "auction-app_nfl_player",
+          "columnsFrom": [
+            "flex2"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "auction-app_roster_bench1_auction-app_nfl_player_id_fk": {
+          "name": "auction-app_roster_bench1_auction-app_nfl_player_id_fk",
+          "tableFrom": "auction-app_roster",
+          "tableTo": "auction-app_nfl_player",
+          "columnsFrom": [
+            "bench1"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "auction-app_roster_bench2_auction-app_nfl_player_id_fk": {
+          "name": "auction-app_roster_bench2_auction-app_nfl_player_id_fk",
+          "tableFrom": "auction-app_roster",
+          "tableTo": "auction-app_nfl_player",
+          "columnsFrom": [
+            "bench2"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "auction-app_roster_bench3_auction-app_nfl_player_id_fk": {
+          "name": "auction-app_roster_bench3_auction-app_nfl_player_id_fk",
+          "tableFrom": "auction-app_roster",
+          "tableTo": "auction-app_nfl_player",
+          "columnsFrom": [
+            "bench3"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "auction-app_roster_bench4_auction-app_nfl_player_id_fk": {
+          "name": "auction-app_roster_bench4_auction-app_nfl_player_id_fk",
+          "tableFrom": "auction-app_roster",
+          "tableTo": "auction-app_nfl_player",
+          "columnsFrom": [
+            "bench4"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "auction-app_roster_bench5_auction-app_nfl_player_id_fk": {
+          "name": "auction-app_roster_bench5_auction-app_nfl_player_id_fk",
+          "tableFrom": "auction-app_roster",
+          "tableTo": "auction-app_nfl_player",
+          "columnsFrom": [
+            "bench5"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "auction-app_roster_bench6_auction-app_nfl_player_id_fk": {
+          "name": "auction-app_roster_bench6_auction-app_nfl_player_id_fk",
+          "tableFrom": "auction-app_roster",
+          "tableTo": "auction-app_nfl_player",
+          "columnsFrom": [
+            "bench6"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "auction-app_roster_team_id_unique": {
+          "name": "auction-app_roster_team_id_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "team_id"
+          ]
+        }
+      }
+    },
+    "public.auction-app_team": {
+      "name": "auction-app_team",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "owner_name": {
+          "name": "owner_name",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "owner_id": {
+          "name": "owner_id",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "draft_order": {
+          "name": "draft_order",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "total_budget": {
+          "name": "total_budget",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 200
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "name_idx": {
+          "name": "name_idx",
+          "columns": [
+            {
+              "expression": "name",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {}
+    }
+  },
+  "enums": {
+    "public.position": {
+      "name": "position",
+      "schema": "public",
+      "values": [
+        "QB",
+        "RB",
+        "WR",
+        "TE"
+      ]
+    }
+  },
+  "schemas": {},
+  "sequences": {},
+  "_meta": {
+    "columns": {},
+    "schemas": {},
+    "tables": {}
+  }
+}
