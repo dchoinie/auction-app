@@ -154,6 +154,7 @@ export default function DraftRoomPage() {
   const [isAssigningPlayer, setIsAssigningPlayer] = useState(false);
   const [isSelling, setIsSelling] = useState(false);
   const [nominationError, setNominationError] = useState<string | null>(null);
+  const [isPlayerConfirmed, setIsPlayerConfirmed] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState<
     "connected" | "disconnected" | "reconnecting"
   >("disconnected");
@@ -248,6 +249,7 @@ export default function DraftRoomPage() {
               setBidAmount(
                 data.state.currentBid ? data.state.currentBid.amount + 1 : 1,
               );
+              setIsPlayerConfirmed(true); // If there's a current bid, the player is confirmed
 
               // Fix type safety in bid history
               const newBid: BidHistoryItem = {
@@ -270,12 +272,14 @@ export default function DraftRoomPage() {
               setSelectedPlayer(data.player);
               setCurrentBid(null);
               setBidAmount(1);
+              setIsPlayerConfirmed(false); // Reset confirmation when a new player is selected
             }
             break;
           case "new_bid":
             if (data.bid) {
               setCurrentBid(data.bid);
               setBidAmount(data.bid.amount + 1);
+              setIsPlayerConfirmed(true); // If there's a bid, the player is confirmed
 
               // Ensure bid has all required fields
               const newBid: BidHistoryItem = {
@@ -436,6 +440,7 @@ export default function DraftRoomPage() {
       setCurrentBid(null);
       setBidAmount(1);
       setInitialNominationAmount(1);
+      setIsPlayerConfirmed(false); // Reset confirmation status when a new player is selected
       socket.send(
         JSON.stringify({
           type: "select_player",
@@ -666,6 +671,7 @@ export default function DraftRoomPage() {
       setCurrentBid(null);
       setBidHistory([]);
       setBidAmount(1);
+      setIsPlayerConfirmed(false); // Reset confirmation status when player is drafted
 
       // Notify other users via websocket
       socket.send(
@@ -1242,6 +1248,9 @@ export default function DraftRoomPage() {
                               ].slice(0, 10),
                             );
 
+                            // Set player as confirmed
+                            setIsPlayerConfirmed(true);
+
                             // Send to server
                             socket.send(
                               JSON.stringify({
@@ -1257,6 +1266,7 @@ export default function DraftRoomPage() {
                         <button
                           onClick={() => {
                             setSelectedPlayer(null);
+                            setIsPlayerConfirmed(false); // Reset confirmation status when selection is canceled
                             socket.send(
                               JSON.stringify({
                                 type: "select_player",
@@ -1405,7 +1415,13 @@ export default function DraftRoomPage() {
                     <button
                       onClick={handleBidSubmit}
                       disabled={(() => {
-                        if (!user || !selectedPlayer || isSelling) return true;
+                        if (
+                          !user ||
+                          !selectedPlayer ||
+                          isSelling ||
+                          !isPlayerConfirmed
+                        )
+                          return true;
 
                         // Find the user's team
                         const userTeam = teams.find(
@@ -1455,7 +1471,12 @@ export default function DraftRoomPage() {
                         return bidAmount < minBid || bidAmount > maxBid;
                       })()}
                       className={`rounded px-4 py-2 text-white ${(() => {
-                        if (!user || !selectedPlayer || isSelling)
+                        if (
+                          !user ||
+                          !selectedPlayer ||
+                          isSelling ||
+                          !isPlayerConfirmed
+                        )
                           return "cursor-not-allowed bg-gray-400";
                         const userTeam = teams.find(
                           (team) => team.ownerId === user.id,
@@ -1506,56 +1527,58 @@ export default function DraftRoomPage() {
                         ? "Select a Player"
                         : isSelling
                           ? "Bidding Closed"
-                          : (() => {
-                              if (!user) return "Not Logged In";
-                              const userTeam = teams.find(
-                                (team) => team.ownerId === user.id,
-                              );
-                              if (!userTeam) return "No Team";
-                              const remainingBudget =
-                                userTeam.totalBudget -
-                                (teamBudgets[userTeam.id] ?? 0);
-                              const roster = rosters.find(
-                                (r) => r.teamId === userTeam.id,
-                              );
-                              const rosterPositions = [
-                                "QB",
-                                "RB1",
-                                "RB2",
-                                "WR1",
-                                "WR2",
-                                "TE",
-                                "Flex1",
-                                "Flex2",
-                                "Bench1",
-                                "Bench2",
-                                "Bench3",
-                                "Bench4",
-                                "Bench5",
-                                "Bench6",
-                              ];
-                              const filledSpots = roster
-                                ? rosterPositions.filter(
-                                    (pos) =>
-                                      roster[pos as keyof typeof roster] !==
-                                      null,
-                                  ).length
-                                : 0;
-                              const totalRosterSpots = 14;
-                              const remainingSpots =
-                                totalRosterSpots - filledSpots;
-                              const reserveAmount = remainingSpots - 1;
-                              const maxBid = Math.max(
-                                0,
-                                remainingBudget - reserveAmount,
-                              );
-                              const minBid = (currentBid?.amount ?? 0) + 1;
-                              if (bidAmount < minBid)
-                                return `Bid must be > $${minBid}`;
-                              if (bidAmount > maxBid)
-                                return `Max bid is $${maxBid}`;
-                              return "Place Bid";
-                            })()}
+                          : !isPlayerConfirmed
+                            ? "Confirm player selection first"
+                            : (() => {
+                                if (!user) return "Not Logged In";
+                                const userTeam = teams.find(
+                                  (team) => team.ownerId === user.id,
+                                );
+                                if (!userTeam) return "No Team";
+                                const remainingBudget =
+                                  userTeam.totalBudget -
+                                  (teamBudgets[userTeam.id] ?? 0);
+                                const roster = rosters.find(
+                                  (r) => r.teamId === userTeam.id,
+                                );
+                                const rosterPositions = [
+                                  "QB",
+                                  "RB1",
+                                  "RB2",
+                                  "WR1",
+                                  "WR2",
+                                  "TE",
+                                  "Flex1",
+                                  "Flex2",
+                                  "Bench1",
+                                  "Bench2",
+                                  "Bench3",
+                                  "Bench4",
+                                  "Bench5",
+                                  "Bench6",
+                                ];
+                                const filledSpots = roster
+                                  ? rosterPositions.filter(
+                                      (pos) =>
+                                        roster[pos as keyof typeof roster] !==
+                                        null,
+                                    ).length
+                                  : 0;
+                                const totalRosterSpots = 14;
+                                const remainingSpots =
+                                  totalRosterSpots - filledSpots;
+                                const reserveAmount = remainingSpots - 1;
+                                const maxBid = Math.max(
+                                  0,
+                                  remainingBudget - reserveAmount,
+                                );
+                                const minBid = (currentBid?.amount ?? 0) + 1;
+                                if (bidAmount < minBid)
+                                  return `Bid must be > $${minBid}`;
+                                if (bidAmount > maxBid)
+                                  return `Max bid is $${maxBid}`;
+                                return "Place Bid";
+                              })()}
                     </button>
                   </div>
 
