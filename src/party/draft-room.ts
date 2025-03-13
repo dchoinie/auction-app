@@ -171,6 +171,13 @@ export default class DraftRoom {
           if (data.player) {
             this.currentState.selectedPlayer = data.player;
             this.currentState.currentBid = null;
+            // Update state with the received values
+            if (data.state) {
+              this.currentState.currentRound = data.state.currentRound;
+              this.currentState.currentNominatorDraftOrder =
+                data.state.currentNominatorDraftOrder;
+            }
+            // Broadcast to ALL connections including sender
             this.party.broadcast(
               JSON.stringify({
                 type: "select_player",
@@ -182,6 +189,7 @@ export default class DraftRoom {
             // Handle clearing the selected player
             this.currentState.selectedPlayer = null;
             this.currentState.currentBid = null;
+            // Broadcast to ALL connections including sender
             this.party.broadcast(
               JSON.stringify({
                 type: "select_player",

@@ -469,11 +469,15 @@ export default function DraftRoomPage() {
       setBidAmount(1);
       setInitialNominationAmount(1);
       setIsPlayerConfirmed(false); // Reset confirmation status when a new player is selected
+
+      // Send complete state to server
       socket.send(
         JSON.stringify({
           type: "select_player",
           player,
           state: {
+            selectedPlayer: player,
+            currentBid: null,
             currentRound,
             currentNominatorDraftOrder,
           },
