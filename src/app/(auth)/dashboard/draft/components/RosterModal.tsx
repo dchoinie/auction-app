@@ -69,16 +69,21 @@ export default function RosterModal({
   }, [isOpen, teamId]);
 
   const renderPlayer = (player: NFLPlayer | null, position: string) => {
-    if (!player) return <div className="text-gray-400">Empty {position}</div>;
+    if (!player)
+      return (
+        <div className="text-xs text-gray-400 sm:text-sm">Empty {position}</div>
+      );
     return (
       <div className="rounded-lg border p-2">
-        <div className="font-medium">
+        <div className="text-xs font-medium sm:text-sm">
           {player.firstName} {player.lastName}
         </div>
-        <div className="text-sm text-gray-600">
+        <div className="text-xs text-gray-600 sm:text-sm">
           {player.position} - {player.nflTeamName}
         </div>
-        <div className="text-sm text-green-600">${player.draftedAmount}</div>
+        <div className="text-xs text-green-600 sm:text-sm">
+          ${player.draftedAmount}
+        </div>
       </div>
     );
   };
@@ -94,9 +99,11 @@ export default function RosterModal({
           <div className="my-4">Loading roster...</div>
         ) : roster ? (
           <div className="mt-4 grid gap-4">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
-                <h3 className="mb-2 font-semibold">Starters</h3>
+                <h3 className="mb-2 text-sm font-semibold sm:text-base">
+                  Starters
+                </h3>
                 <div className="space-y-2">
                   {renderPlayer(roster.qbPlayer, "QB")}
                   {renderPlayer(roster.rb1Player, "RB1")}
@@ -109,7 +116,9 @@ export default function RosterModal({
                 </div>
               </div>
               <div>
-                <h3 className="mb-2 font-semibold">Bench</h3>
+                <h3 className="mb-2 text-sm font-semibold sm:text-base">
+                  Bench
+                </h3>
                 <div className="space-y-2">
                   {renderPlayer(roster.bench1Player, "Bench 1")}
                   {renderPlayer(roster.bench2Player, "Bench 2")}

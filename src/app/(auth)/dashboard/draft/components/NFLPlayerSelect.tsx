@@ -101,14 +101,14 @@ export default function NFLPlayerSelect({
     <div className="mt-4 w-full">
       <div className="nfl-player-select relative">
         <div
-          className={`relative w-full cursor-default overflow-hidden rounded-lg border bg-white text-left focus:outline-none sm:text-sm ${
+          className={`relative w-full cursor-default overflow-hidden rounded-lg border bg-white text-left text-xs focus:outline-none sm:text-sm ${
             isDisabled ? "bg-gray-50" : ""
           }`}
         >
           <button
             type="button"
             onClick={() => !isDisabled && setIsOpen(!isOpen)}
-            className={`w-full border-none py-4 pl-3 pr-10 text-left text-sm leading-5 text-gray-900 focus:ring-0 ${
+            className={`w-full border-none py-3 pl-3 pr-10 text-left text-xs leading-5 text-gray-900 focus:ring-0 sm:py-4 sm:text-sm ${
               isDisabled
                 ? "cursor-not-allowed bg-gray-50 text-gray-500"
                 : "cursor-pointer"
@@ -146,23 +146,23 @@ export default function NFLPlayerSelect({
             <div className="sticky top-0 z-10 bg-white px-3 py-2">
               <input
                 type="text"
-                className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm placeholder-gray-500 focus:border-blue-500 focus:outline-none"
+                className="w-full rounded-md border border-gray-300 px-3 py-2 text-xs placeholder-gray-500 focus:border-blue-500 focus:outline-none sm:text-sm"
                 placeholder="Search players..."
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 autoFocus
               />
             </div>
-            <div className="max-h-60 overflow-auto py-1 text-base sm:text-sm">
+            <div className="max-h-60 overflow-auto py-1 text-xs sm:text-sm">
               {filteredPlayers.length === 0 ? (
-                <div className="relative cursor-default select-none px-4 py-2 text-gray-700">
+                <div className="relative cursor-default select-none px-3 py-2 text-gray-700 sm:px-4">
                   Nothing found.
                 </div>
               ) : (
                 filteredPlayers.map((player) => (
                   <div
                     key={player.id}
-                    className={`relative cursor-pointer select-none py-2 pl-3 pr-9 hover:bg-blue-600 hover:text-white ${
+                    className={`relative cursor-pointer select-none py-1 pl-3 pr-9 text-xs hover:bg-blue-600 hover:text-white sm:py-2 sm:text-sm ${
                       player.id === selectedPlayerId
                         ? "bg-blue-100"
                         : "text-gray-900"

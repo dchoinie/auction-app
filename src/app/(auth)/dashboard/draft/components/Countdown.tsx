@@ -64,7 +64,7 @@ const Countdown = memo(function Countdown({ onComplete }: CountdownProps) {
 
   return (
     <div className="pointer-events-none fixed inset-0 z-50 flex items-center justify-center">
-      <div className="rounded-lg bg-white/90 px-12 py-8 text-center text-4xl font-bold shadow-lg">
+      <div className="rounded-lg bg-white/90 px-6 py-6 text-center text-2xl font-bold shadow-lg sm:px-12 sm:py-8 sm:text-4xl">
         {stage === "first" && <p className="text-blue-600">Going once...</p>}
         {stage === "second" && (
           <p className="text-yellow-600">Going twice...</p>

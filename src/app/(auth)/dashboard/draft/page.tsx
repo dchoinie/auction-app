@@ -19,6 +19,8 @@ import {
   DropdownMenuTrigger,
 } from "~/components/ui/dropdown-menu";
 import { MoreVertical } from "lucide-react";
+import { Notification } from "./components/UserNotification";
+import { useNotifications } from "~/contexts/NotificationContext";
 
 interface NFLPlayer {
   id: number;
@@ -156,6 +158,10 @@ export default function DraftRoomPage() {
     "connected" | "disconnected" | "reconnecting"
   >("disconnected");
   const [onlineUsers, setOnlineUsers] = useState<Set<string>>(new Set());
+  const [previousOnlineUsers, setPreviousOnlineUsers] = useState<Set<string>>(
+    new Set(),
+  );
+  const { addNotification } = useNotifications();
 
   // Add effect to update online users when Clerk session changes
   useEffect(() => {
@@ -163,6 +169,48 @@ export default function DraftRoomPage() {
       setOnlineUsers((prev) => new Set([...prev, user.id]));
     }
   }, [user]);
+
+  // Track user activity changes and show notifications
+  useEffect(() => {
+    if (teams.length === 0) return; // Skip if teams aren't loaded yet
+
+    // Find new users that weren't online before
+    const newUsers = Array.from(onlineUsers).filter(
+      (userId) => !previousOnlineUsers.has(userId),
+    );
+
+    // Find users that left
+    const leftUsers = Array.from(previousOnlineUsers).filter(
+      (userId) => !onlineUsers.has(userId),
+    );
+
+    // Create notifications for new users
+    newUsers.forEach((userId) => {
+      const team = teams.find((t) => t.ownerId === userId);
+      if (team && userId !== user?.id) {
+        // Don't notify about the current user
+        addNotification({
+          message: `${team.ownerName} has joined the draft room`,
+          type: "success",
+        });
+      }
+    });
+
+    // Create notifications for users that left
+    leftUsers.forEach((userId) => {
+      const team = teams.find((t) => t.ownerId === userId);
+      if (team && userId !== user?.id) {
+        // Don't notify about the current user
+        addNotification({
+          message: `${team.ownerName} has left the draft room`,
+          type: "warning",
+        });
+      }
+    });
+
+    // Update previous online users for next comparison
+    setPreviousOnlineUsers(new Set(onlineUsers));
+  }, [onlineUsers, teams, user?.id, addNotification]);
 
   const socket = usePartySocket({
     host: process.env.NEXT_PUBLIC_PARTYKIT_HOST!,
@@ -249,11 +297,17 @@ export default function DraftRoomPage() {
           case "user_joined":
             if (data.user) {
               setActiveUserIds((prev) => new Set([...prev, data.user!.id]));
+              setOnlineUsers((prev) => new Set([...prev, data.user!.id]));
             }
             break;
           case "user_left":
             if (data.userId) {
               setActiveUserIds((prev) => {
+                const newSet = new Set(prev);
+                newSet.delete(data.userId!);
+                return newSet;
+              });
+              setOnlineUsers((prev) => {
                 const newSet = new Set(prev);
                 newSet.delete(data.userId!);
                 return newSet;
@@ -550,6 +604,15 @@ export default function DraftRoomPage() {
         draftedAmount: currentBid.amount,
       });
 
+      // Add notification for successful draft
+      const draftedTeam = teams.find((t) => t.id === currentBid.teamId);
+      if (draftedTeam) {
+        addNotification({
+          message: `${selectedPlayer.firstName} ${selectedPlayer.lastName} drafted by ${draftedTeam.name} for $${currentBid.amount}`,
+          type: "info",
+        });
+      }
+
       // Move to next nominator after player is drafted
       // Keep moving to next nominator until we find a team with available spots
       let nextNominatorFound = false;
@@ -622,6 +685,10 @@ export default function DraftRoomPage() {
     } catch (error) {
       console.error("Error finalizing draft:", error);
       // You might want to show an error message to the user here
+      addNotification({
+        message: "Error finalizing draft. Please try again.",
+        type: "error",
+      });
     } finally {
       setIsAssigningPlayer(false);
       setIsSelling(false);
@@ -634,6 +701,7 @@ export default function DraftRoomPage() {
     moveToNextNominator,
     teams,
     rosters,
+    addNotification,
   ]);
 
   const handleCountdownCancel = useCallback(() => {
@@ -677,11 +745,11 @@ export default function DraftRoomPage() {
 
   return (
     <Container>
-      <div className="mb-64 mt-12 flex flex-col gap-4">
+      <div className="mb-32 mt-6 flex flex-col gap-4 sm:mb-64 sm:mt-12">
         {/* Teams section - now horizontal at top */}
-        <div className="rounded-lg border p-4">
-          <div className="mb-4 flex items-center justify-between">
-            <h2 className="text-lg font-semibold">Teams</h2>
+        <div className="rounded-lg border p-3 sm:p-4">
+          <div className="mb-3 flex items-center justify-between sm:mb-4">
+            <h2 className="text-base font-semibold sm:text-lg">Teams</h2>
           </div>
           {isLoadingTeams ? (
             <div className="flex flex-col items-center justify-center py-8">
@@ -689,7 +757,7 @@ export default function DraftRoomPage() {
               <p className="mt-4 text-sm text-gray-500">Loading teams...</p>
             </div>
           ) : (
-            <div className="grid grid-cols-3 gap-2 lg:grid-cols-4 xl:grid-cols-5">
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
               {[...teams]
                 .sort((a, b) => {
                   // If both have draft orders, compare them
@@ -743,7 +811,7 @@ export default function DraftRoomPage() {
                   return (
                     <div
                       key={team.id}
-                      className={`relative rounded-lg border p-2 transition-all ${
+                      className={`relative rounded-lg border p-2 text-sm transition-all ${
                         isCurrentNominator
                           ? "border-blue-500 bg-blue-50 shadow-md"
                           : ""
@@ -862,11 +930,11 @@ export default function DraftRoomPage() {
         </div>
 
         {/* Main draft room content */}
-        <div className="rounded-lg border p-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <h1 className="text-2xl font-bold">Draft Room</h1>
-              <div className="flex items-center gap-2 rounded-lg bg-blue-50 px-3 py-1">
+        <div className="rounded-lg border p-3 sm:p-4">
+          <div className="flex flex-col items-start justify-between gap-2 sm:flex-row sm:items-center">
+            <div className="flex flex-wrap items-center gap-2">
+              <h1 className="text-xl font-bold sm:text-2xl">Draft Room</h1>
+              <div className="flex items-center gap-1 rounded-lg bg-blue-50 px-2 py-1 text-xs sm:gap-2 sm:px-3 sm:text-sm">
                 <span className="text-sm font-medium text-blue-700">Round</span>
                 <span className="text-lg font-bold text-blue-800">
                   {currentRound}
@@ -883,7 +951,7 @@ export default function DraftRoomPage() {
             {isConnected && (
               <button
                 onClick={leaveDraftRoom}
-                className="rounded bg-red-500 px-4 py-2 text-white hover:bg-red-600"
+                className="mt-2 rounded bg-red-500 px-3 py-1 text-sm text-white hover:bg-red-600 sm:mt-0 sm:px-4 sm:py-2 sm:text-base"
               >
                 Leave Room
               </button>
@@ -892,7 +960,7 @@ export default function DraftRoomPage() {
           {!isConnected ? (
             <button
               onClick={joinDraftRoom}
-              className="mt-4 rounded bg-blue-500 px-4 py-2 text-white hover:bg-blue-600"
+              className="mt-4 rounded bg-blue-500 px-3 py-1 text-sm text-white hover:bg-blue-600 sm:px-4 sm:py-2 sm:text-base"
             >
               Join Draft Room
             </button>
@@ -925,24 +993,24 @@ export default function DraftRoomPage() {
 
           {/* Selected Player and Current Bid */}
           {selectedPlayer && (
-            <div className="mb-6 space-y-6 overflow-hidden rounded-xl border-2 border-blue-500 bg-gradient-to-br from-blue-50 via-white to-blue-50 p-8 shadow-2xl transition-all">
+            <div className="mb-6 space-y-4 overflow-hidden rounded-xl border-2 border-blue-500 bg-gradient-to-br from-blue-50 via-white to-blue-50 p-4 shadow-2xl transition-all sm:space-y-6 sm:p-8">
               <div className="relative">
                 {/* Sparkle effects */}
-                <div className="absolute -left-4 -top-4 h-12 w-12 animate-pulse rounded-full bg-blue-200 opacity-50 blur-xl"></div>
-                <div className="absolute -bottom-4 -right-4 h-12 w-12 animate-pulse rounded-full bg-blue-200 opacity-50 blur-xl"></div>
+                <div className="absolute -left-4 -top-4 h-8 w-8 animate-pulse rounded-full bg-blue-200 opacity-50 blur-xl sm:h-12 sm:w-12"></div>
+                <div className="absolute -bottom-4 -right-4 h-8 w-8 animate-pulse rounded-full bg-blue-200 opacity-50 blur-xl sm:h-12 sm:w-12"></div>
 
-                <div className="flex items-center justify-between">
-                  <div className="relative">
+                <div className="flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
+                  <div className="relative w-full sm:w-auto">
                     <div className="animate-pulse-slow absolute -inset-1 rounded-lg bg-gradient-to-r from-blue-600 via-sky-400 to-blue-600 opacity-20 blur"></div>
                     <div className="relative">
-                      <h2 className="bg-gradient-to-r from-blue-700 via-blue-800 to-blue-900 bg-clip-text text-4xl font-bold text-transparent">
+                      <h2 className="bg-gradient-to-r from-blue-700 via-blue-800 to-blue-900 bg-clip-text text-2xl font-bold text-transparent sm:text-4xl">
                         {selectedPlayer.firstName} {selectedPlayer.lastName}
                       </h2>
-                      <div className="mt-2 flex items-center gap-3">
-                        <span className="rounded-full bg-blue-100 px-3 py-1 text-lg font-semibold text-blue-800">
+                      <div className="mt-2 flex items-center gap-2">
+                        <span className="rounded-full bg-blue-100 px-2 py-1 text-sm font-semibold text-blue-800 sm:text-lg">
                           {selectedPlayer.position}
                         </span>
-                        <span className="text-lg text-blue-600">
+                        <span className="text-sm text-blue-600 sm:text-lg">
                           {selectedPlayer.nflTeamName}
                         </span>
                       </div>
@@ -950,23 +1018,23 @@ export default function DraftRoomPage() {
                   </div>
 
                   {currentBid ? (
-                    <div className="relative">
+                    <div className="relative mt-4 w-full sm:mt-0 sm:w-auto">
                       <div className="animate-pulse-slow absolute -inset-1 rounded-lg bg-gradient-to-r from-green-600 via-emerald-400 to-green-600 opacity-20 blur"></div>
-                      <div className="relative rounded-xl border-2 border-green-500 bg-gradient-to-b from-green-50 to-white p-6 shadow-lg">
-                        <div className="text-sm font-medium text-green-800">
+                      <div className="relative rounded-xl border-2 border-green-500 bg-gradient-to-b from-green-50 to-white p-4 shadow-lg sm:p-6">
+                        <div className="text-xs font-medium text-green-800 sm:text-sm">
                           Current Leader
                         </div>
-                        <div className="bg-gradient-to-r from-green-600 to-green-800 bg-clip-text text-3xl font-bold text-transparent">
+                        <div className="bg-gradient-to-r from-green-600 to-green-800 bg-clip-text text-2xl font-bold text-transparent sm:text-3xl">
                           ${currentBid.amount}
                         </div>
-                        <div className="text-sm font-medium text-green-600">
+                        <div className="text-xs font-medium text-green-600 sm:text-sm">
                           by {currentBid.userName}
                         </div>
                       </div>
                     </div>
                   ) : (
-                    <div className="flex gap-2">
-                      <div className="flex items-center gap-4">
+                    <div className="flex w-full flex-col gap-2 sm:flex-row">
+                      <div className="flex flex-wrap items-center gap-2 sm:gap-4">
                         <div className="flex items-center gap-2">
                           <button
                             onClick={() =>
@@ -1182,7 +1250,7 @@ export default function DraftRoomPage() {
                               }),
                             );
                           }}
-                          className="rounded-lg bg-gradient-to-r from-green-500 to-green-600 px-6 py-3 text-white shadow-lg transition-all hover:from-green-600 hover:to-green-700 hover:shadow-xl"
+                          className="rounded-lg bg-gradient-to-r from-green-500 to-green-600 px-4 py-2 text-sm text-white shadow-lg transition-all hover:from-green-600 hover:to-green-700 hover:shadow-xl sm:px-6 sm:py-3 sm:text-base"
                         >
                           Confirm Selection
                         </button>
@@ -1196,7 +1264,7 @@ export default function DraftRoomPage() {
                               }),
                             );
                           }}
-                          className="rounded-lg bg-gradient-to-r from-gray-500 to-gray-600 px-6 py-3 text-white shadow-lg transition-all hover:from-gray-600 hover:to-gray-700 hover:shadow-xl"
+                          className="rounded-lg bg-gradient-to-r from-gray-500 to-gray-600 px-4 py-2 text-sm text-white shadow-lg transition-all hover:from-gray-600 hover:to-gray-700 hover:shadow-xl sm:px-6 sm:py-3 sm:text-base"
                         >
                           Cancel Selection
                         </button>
@@ -1208,9 +1276,9 @@ export default function DraftRoomPage() {
 
               {/* Bidding Controls */}
               <div className="space-y-4 rounded-lg bg-white/50 p-4 backdrop-blur-sm">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-4">
-                    <label className="text-sm font-medium text-gray-700">
+                <div className="flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
+                  <div className="flex flex-wrap items-center gap-2 sm:gap-4">
+                    <label className="text-xs font-medium text-gray-700 sm:text-sm">
                       Bid Amount:
                     </label>
                     <button
@@ -1224,7 +1292,7 @@ export default function DraftRoomPage() {
                         const minBid = (currentBid?.amount ?? 0) + 1;
                         return bidAmount <= minBid;
                       })()}
-                      className={`rounded px-3 py-1 ${(() => {
+                      className={`rounded px-2 py-1 text-sm sm:px-3 ${(() => {
                         if (!user) return "bg-gray-100 text-gray-400";
                         const userTeam = teams.find(
                           (team) => team.ownerId === user.id,
@@ -1238,7 +1306,7 @@ export default function DraftRoomPage() {
                     >
                       -
                     </button>
-                    <span className="min-w-[3ch] text-center">
+                    <span className="min-w-[3ch] text-center text-sm sm:text-base">
                       ${bidAmount}
                     </span>
                     <button
@@ -1286,7 +1354,7 @@ export default function DraftRoomPage() {
                         );
                         return bidAmount >= maxBid;
                       })()}
-                      className={`rounded px-3 py-1 ${(() => {
+                      className={`rounded px-2 py-1 text-sm sm:px-3 ${(() => {
                         if (!user) return "bg-gray-100 text-gray-400";
                         const userTeam = teams.find(
                           (team) => team.ownerId === user.id,
@@ -1494,7 +1562,7 @@ export default function DraftRoomPage() {
                   {currentBid && (
                     <button
                       onClick={() => setShowCountdown(true)}
-                      className={`rounded px-4 py-2 text-white ${
+                      className={`mt-2 rounded px-3 py-1 text-xs text-white sm:mt-0 sm:px-4 sm:py-2 sm:text-sm ${
                         showCountdown || isSelling
                           ? "cursor-not-allowed bg-gray-400"
                           : "bg-yellow-500 hover:bg-yellow-600"
@@ -1509,24 +1577,28 @@ export default function DraftRoomPage() {
 
               {/* Bid History */}
               <div className="rounded-lg bg-white/50 p-4 backdrop-blur-sm">
-                <h3 className="mb-3 text-lg font-semibold text-gray-800">
+                <h3 className="mb-3 text-base font-semibold text-gray-800 sm:text-lg">
                   Bid History
                 </h3>
                 <div className="space-y-2">
                   {bidHistory.map((bid, index) => (
                     <div
                       key={bid.timestamp}
-                      className={`rounded-lg border p-3 ${
+                      className={`rounded-lg border p-2 sm:p-3 ${
                         bid.isHighestBid
                           ? "border-green-500 bg-green-50"
                           : "bg-white"
                       }`}
                     >
                       <div className="flex items-center justify-between">
-                        <span className="font-medium">{bid.userName}</span>
-                        <span className="text-lg font-bold">${bid.amount}</span>
+                        <span className="text-sm font-medium sm:text-base">
+                          {bid.userName}
+                        </span>
+                        <span className="text-base font-bold sm:text-lg">
+                          ${bid.amount}
+                        </span>
                       </div>
-                      <div className="text-sm text-gray-500">
+                      <div className="text-xs text-gray-500 sm:text-sm">
                         {new Date(bid.timestamp).toLocaleTimeString()}
                       </div>
                     </div>
