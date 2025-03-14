@@ -105,6 +105,60 @@ export default function ManualPlayerAssign() {
         throw new Error("Selected player not found");
       }
 
+      // First, find an available roster spot
+      const rosterResponse = await fetch(`/api/rosters/${selectedTeamId}`);
+      if (!rosterResponse.ok) {
+        throw new Error("Failed to fetch roster");
+      }
+      const roster = (await rosterResponse.json()) as Roster;
+
+      // Determine which roster spot to use based on position
+      let rosterSpot: RosterSpot | null = null;
+      const position = selectedPlayer.position;
+
+      // Check position-specific spots first
+      if (position === "QB" && !roster.QB) {
+        rosterSpot = "QB";
+      } else if (position === "RB" && !roster.RB1) {
+        rosterSpot = "RB1";
+      } else if (position === "RB" && !roster.RB2) {
+        rosterSpot = "RB2";
+      } else if (position === "WR" && !roster.WR1) {
+        rosterSpot = "WR1";
+      } else if (position === "WR" && !roster.WR2) {
+        rosterSpot = "WR2";
+      } else if (position === "TE" && !roster.TE) {
+        rosterSpot = "TE";
+      } else {
+        // Check flex spots for RB/WR/TE
+        if (["RB", "WR", "TE"].includes(position)) {
+          if (!roster.Flex1) rosterSpot = "Flex1";
+          else if (!roster.Flex2) rosterSpot = "Flex2";
+        }
+      }
+
+      // If no position-specific or flex spot, try bench spots
+      if (!rosterSpot) {
+        const benchSpots: RosterSpot[] = [
+          "Bench1",
+          "Bench2",
+          "Bench3",
+          "Bench4",
+          "Bench5",
+          "Bench6",
+        ];
+        for (const spot of benchSpots) {
+          if (!roster[spot]) {
+            rosterSpot = spot;
+            break;
+          }
+        }
+      }
+
+      if (!rosterSpot) {
+        throw new Error("No available roster spots for this player");
+      }
+
       // Update NFL player assignment
       const playerResponse = await fetch(
         `/api/nfl-players/${selectedPlayerId}`,
@@ -126,17 +180,16 @@ export default function ManualPlayerAssign() {
         throw new Error(errorData.error || "Failed to assign player");
       }
 
-      // Update roster with the new player
+      // Update roster with the new player using the existing PATCH endpoint
       const updateRosterResponse = await fetch(
-        `/api/rosters/${selectedTeamId}/assign-player`,
+        `/api/rosters/${selectedTeamId}`,
         {
-          method: "POST",
+          method: "PATCH",
           headers: {
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
-            playerId: selectedPlayerId,
-            position: selectedPlayer.position,
+            [rosterSpot]: selectedPlayerId,
           }),
         },
       );
