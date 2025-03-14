@@ -71,7 +71,8 @@ interface DraftMessage {
     | "update_nomination"
     | "start_countdown"
     | "cancel_countdown"
-    | "countdown_complete";
+    | "countdown_complete"
+    | "draft_reset";
   users?: DraftUser[];
   message?: string;
   player?: NFLPlayer;
@@ -407,6 +408,61 @@ export default function DraftRoomPage() {
                 setCurrentNominator(data.state.currentNominatorDraftOrder);
               }
             }
+            break;
+          case "draft_reset":
+            // Reset all local state
+            setSelectedPlayer(null);
+            setCurrentBid(null);
+            setBidHistory([]);
+            setBidAmount(1);
+            setInitialNominationAmount(1);
+            setIsPlayerConfirmed(false);
+            setShowCountdown(false);
+            setIsSelling(false);
+            setCountdownStartTime(undefined);
+            setCountdownTriggeredBy(undefined);
+
+            // Refresh teams, budgets, and rosters
+            void (async () => {
+              try {
+                // Fetch fresh teams data
+                const teamsRes = await fetch("/api/teams");
+                const teamsData = (await teamsRes.json()) as TeamResponse[];
+                setTeams(
+                  teamsData.map((team) => ({
+                    id: team.id,
+                    name: team.name,
+                    ownerName: team.ownerName,
+                    ownerId: team.ownerId,
+                    draftOrder: team.draftOrder,
+                    totalBudget: team.totalBudget,
+                  })),
+                );
+
+                // Fetch fresh budget data
+                const budgetsRes = await fetch("/api/teams/budget");
+                const budgets = (await budgetsRes.json()) as TeamBudget[];
+                setTeamBudgets(
+                  Object.fromEntries(
+                    budgets.map((b) => [b.teamId, b.spentAmount]),
+                  ),
+                );
+
+                // Fetch fresh roster data
+                const rostersRes = await fetch("/api/rosters");
+                const rostersData = (await rostersRes.json()) as Roster[];
+                setRosters(rostersData);
+
+                // Invalidate and refresh players cache
+                invalidateCache();
+                void fetchPlayers();
+              } catch (error) {
+                console.error(
+                  "Error refreshing data after draft reset:",
+                  error,
+                );
+              }
+            })();
             break;
         }
       } catch (e) {

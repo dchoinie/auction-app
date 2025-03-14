@@ -2,12 +2,24 @@
 
 import { useState, useEffect } from "react";
 import { useNFLPlayersStore } from "~/store/nfl-players";
+import { usePartySocket } from "partysocket/react";
 
 interface Team {
   id: number;
   name: string;
   ownerName: string;
   totalBudget: number;
+}
+
+interface DraftState {
+  selectedPlayer: null;
+  currentBid: null;
+  users: { id: string; name: string; isActive: boolean; joinedAt: number }[];
+  currentNominatorDraftOrder: number;
+  currentRound: number;
+  isCountdownActive: boolean;
+  countdownStartTime: null;
+  triggeredBy: null;
 }
 
 export default function ManualPlayerAssign() {
@@ -22,6 +34,12 @@ export default function ManualPlayerAssign() {
     text: string;
   } | null>(null);
   const { players, fetchPlayers } = useNFLPlayersStore();
+
+  // Add socket connection
+  const socket = usePartySocket({
+    host: process.env.NEXT_PUBLIC_PARTYKIT_HOST!,
+    room: "draft",
+  });
 
   // Fetch teams
   useEffect(() => {
@@ -56,6 +74,7 @@ export default function ManualPlayerAssign() {
     setMessage(null);
 
     try {
+      // Update NFL player and roster in one call
       const response = await fetch(`/api/nfl-players/${selectedPlayerId}`, {
         method: "PATCH",
         headers: {
@@ -71,6 +90,19 @@ export default function ManualPlayerAssign() {
       if (!response.ok) {
         const errorData = (await response.json()) as { error: string };
         throw new Error(errorData.error || "Failed to assign player");
+      }
+
+      // Get the assigned player details
+      const assignedPlayer = players.find((p) => p.id === selectedPlayerId);
+      const assignedTeam = teams.find((t) => t.id === selectedTeamId);
+
+      if (assignedPlayer && assignedTeam) {
+        // Send notification to all clients about the manual assignment
+        socket.send(
+          JSON.stringify({
+            type: "draft_reset",
+          }),
+        );
       }
 
       // Reset form

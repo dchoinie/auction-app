@@ -5,9 +5,10 @@ import Container from "~/components/Container";
 import ManualPlayerAssign from "./components/ManualPlayerAssign";
 import { useUserRole } from "~/hooks/use-user-role";
 import { hasPermission } from "~/lib/permissions";
-import { redirect } from "next/navigation";
+import { redirect, useRouter } from "next/navigation";
 import Link from "next/link";
 import { useNominationStore } from "~/store/nomination";
+import { usePartySocket } from "partysocket/react";
 
 interface Team {
   id: number;
@@ -45,6 +46,7 @@ function TeamListItem({
 
 export default function AdminPage() {
   const role = useUserRole();
+  const router = useRouter();
   const [teams, setTeams] = useState<Team[]>([]);
   const [draftOrderChanges, setDraftOrderChanges] = useState<
     Record<number, number>
@@ -57,6 +59,12 @@ export default function AdminPage() {
     text: string;
   } | null>(null);
   const { resetNomination } = useNominationStore();
+
+  // Add socket connection
+  const socket = usePartySocket({
+    host: process.env.NEXT_PUBLIC_PARTYKIT_HOST!,
+    room: "draft",
+  });
 
   useEffect(() => {
     const fetchTeams = async () => {
@@ -172,6 +180,16 @@ export default function AdminPage() {
         method: "POST",
       });
 
+      // Reset nomination store AFTER all resets are complete
+      resetNomination();
+
+      // Broadcast draft reset to all clients
+      socket.send(
+        JSON.stringify({
+          type: "draft_reset",
+        }),
+      );
+
       // Fetch updated teams list
       const response = await fetch("/api/teams");
       const data = (await response.json()) as Team[];
@@ -179,9 +197,6 @@ export default function AdminPage() {
 
       // Clear any pending draft order changes
       setDraftOrderChanges({});
-
-      // Reset nomination store AFTER all resets are complete
-      resetNomination();
 
       setUpdateMessage({
         type: "success",
