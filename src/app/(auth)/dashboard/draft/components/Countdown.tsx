@@ -4,9 +4,18 @@ import { useEffect, useRef, useState, memo } from "react";
 
 interface CountdownProps {
   onComplete: () => void;
+  onCancel: () => void;
+  startTime?: number;
 }
 
-const Countdown = memo(function Countdown({ onComplete }: CountdownProps) {
+const STAGE_DURATION = 3000; // 3 seconds per stage
+const TOTAL_DURATION = STAGE_DURATION * 3; // 9 seconds total
+
+const Countdown = memo(function Countdown({
+  onComplete,
+  onCancel,
+  startTime,
+}: CountdownProps) {
   const [stage, setStage] = useState<"first" | "second" | "sold">("first");
   const timeoutsRef = useRef<NodeJS.Timeout[]>([]);
   const hasSpokenRef = useRef<Set<string>>(new Set());
@@ -24,32 +33,60 @@ const Countdown = memo(function Countdown({ onComplete }: CountdownProps) {
     // Reset spoken phrases on mount
     hasSpokenRef.current = new Set();
 
+    if (!startTime) return;
+
+    const now = Date.now();
+    const elapsedTime = now - startTime;
+
+    // If the countdown should have already completed
+    if (elapsedTime >= TOTAL_DURATION) {
+      onComplete();
+      return;
+    }
+
     const startCountdown = () => {
-      // Going once
-      const firstTimeout = setTimeout(() => {
+      // Calculate remaining time for each stage
+      if (elapsedTime < STAGE_DURATION) {
+        // Still in first stage
         speak("Going once");
         setStage("first");
 
-        // Going twice
+        const remainingInFirst = STAGE_DURATION - elapsedTime;
+
         const secondTimeout = setTimeout(() => {
           speak("Going twice");
           setStage("second");
 
-          // Sold
           const soldTimeout = setTimeout(() => {
             speak("Sold!");
             setStage("sold");
-            // Add a small delay before completing to show the "SOLD!" message
             setTimeout(onComplete, 1000);
-          }, 3000);
+          }, STAGE_DURATION);
 
           timeoutsRef.current.push(soldTimeout);
-        }, 3000);
+        }, remainingInFirst);
 
         timeoutsRef.current.push(secondTimeout);
-      }, 0);
+      } else if (elapsedTime < STAGE_DURATION * 2) {
+        // In second stage
+        speak("Going twice");
+        setStage("second");
 
-      timeoutsRef.current.push(firstTimeout);
+        const remainingInSecond = STAGE_DURATION * 2 - elapsedTime;
+
+        const soldTimeout = setTimeout(() => {
+          speak("Sold!");
+          setStage("sold");
+          setTimeout(onComplete, 1000);
+        }, remainingInSecond);
+
+        timeoutsRef.current.push(soldTimeout);
+      } else {
+        // In final stage
+        speak("Sold!");
+        setStage("sold");
+        setTimeout(onComplete, 1000);
+      }
     };
 
     startCountdown();
@@ -60,16 +97,24 @@ const Countdown = memo(function Countdown({ onComplete }: CountdownProps) {
       window.speechSynthesis.cancel();
       hasSpokenRef.current.clear();
     };
-  }, [onComplete]);
+  }, [onComplete, startTime]);
 
   return (
-    <div className="pointer-events-none fixed inset-0 z-50 flex items-center justify-center">
-      <div className="rounded-lg bg-white/90 px-6 py-6 text-center text-2xl font-bold shadow-lg sm:px-12 sm:py-8 sm:text-4xl">
-        {stage === "first" && <p className="text-blue-600">Going once...</p>}
-        {stage === "second" && (
-          <p className="text-yellow-600">Going twice...</p>
-        )}
-        {stage === "sold" && <p className="text-green-600">SOLD!</p>}
+    <div className="fixed inset-0 z-50 flex items-center justify-center">
+      <div className="rounded-lg bg-white/90 px-6 py-6 text-center shadow-lg sm:px-12 sm:py-8">
+        <div className="text-2xl font-bold sm:text-4xl">
+          {stage === "first" && <p className="text-blue-600">Going once...</p>}
+          {stage === "second" && (
+            <p className="text-yellow-600">Going twice...</p>
+          )}
+          {stage === "sold" && <p className="text-green-600">SOLD!</p>}
+        </div>
+        <button
+          onClick={onCancel}
+          className="mt-4 rounded bg-red-500 px-4 py-2 text-sm text-white hover:bg-red-600"
+        >
+          Cancel
+        </button>
       </div>
     </div>
   );

@@ -30,6 +30,8 @@ interface DraftState {
   currentBid: DraftBid | null;
   currentRound: number;
   currentNominatorDraftOrder: number;
+  isCountdownActive?: boolean;
+  countdownStartTime?: number;
 }
 
 interface DraftMessage {
@@ -41,12 +43,15 @@ interface DraftMessage {
     | "user_joined"
     | "user_left"
     | "heartbeat"
-    | "update_nomination";
+    | "update_nomination"
+    | "start_countdown"
+    | "cancel_countdown";
   user?: DraftUser;
   userId?: string;
   player?: NFLPlayer;
   bid?: DraftBid;
   state?: DraftState;
+  startTime?: number;
 }
 
 export default class DraftRoom implements PartyKit.Server {
@@ -62,6 +67,8 @@ export default class DraftRoom implements PartyKit.Server {
     currentBid: null,
     currentRound: 1,
     currentNominatorDraftOrder: 1,
+    isCountdownActive: false,
+    countdownStartTime: undefined,
   };
 
   constructor(readonly party: PartyKit.Party) {
@@ -241,6 +248,27 @@ export default class DraftRoom implements PartyKit.Server {
               }),
             );
           }
+          break;
+
+        case "start_countdown":
+          this.currentState.isCountdownActive = true;
+          this.currentState.countdownStartTime = Date.now();
+          this.party.broadcast(
+            JSON.stringify({
+              type: "start_countdown",
+              startTime: this.currentState.countdownStartTime,
+            }),
+          );
+          break;
+
+        case "cancel_countdown":
+          this.currentState.isCountdownActive = false;
+          this.currentState.countdownStartTime = undefined;
+          this.party.broadcast(
+            JSON.stringify({
+              type: "cancel_countdown",
+            }),
+          );
           break;
       }
     } catch (error) {

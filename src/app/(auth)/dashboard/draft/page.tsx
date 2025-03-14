@@ -62,17 +62,22 @@ interface DraftMessage {
     | "user_joined"
     | "user_left"
     | "heartbeat"
-    | "update_nomination";
+    | "update_nomination"
+    | "start_countdown"
+    | "cancel_countdown";
   users?: DraftUser[];
   message?: string;
   player?: NFLPlayer;
   bid?: DraftBid;
+  startTime?: number;
   state?: {
     selectedPlayer: NFLPlayer | null;
     currentBid: DraftBid | null;
     users: DraftUser[];
     currentNominatorDraftOrder: number;
     currentRound: number;
+    isCountdownActive?: boolean;
+    countdownStartTime?: number;
   };
   user?: DraftUser;
   userId?: string;
@@ -166,6 +171,9 @@ export default function DraftRoomPage() {
     new Set(),
   );
   const { addNotification } = useNotifications();
+  const [countdownStartTime, setCountdownStartTime] = useState<
+    number | undefined
+  >(undefined);
 
   // Add effect to update online users when Clerk session changes
   useEffect(() => {
@@ -255,6 +263,14 @@ export default function DraftRoomPage() {
             // Update nomination state
             if (data.state?.currentNominatorDraftOrder) {
               setCurrentNominator(data.state.currentNominatorDraftOrder);
+            }
+
+            if (
+              data.state?.isCountdownActive &&
+              data.state?.countdownStartTime
+            ) {
+              setShowCountdown(true);
+              setCountdownStartTime(data.state.countdownStartTime);
             }
             break;
           case "welcome":
@@ -346,6 +362,16 @@ export default function DraftRoomPage() {
                 );
               }
             }
+            break;
+          case "start_countdown":
+            if (data.startTime) {
+              setShowCountdown(true);
+              setCountdownStartTime(data.startTime);
+            }
+            break;
+          case "cancel_countdown":
+            setShowCountdown(false);
+            setCountdownStartTime(undefined);
             break;
         }
       } catch (e) {
@@ -790,6 +816,24 @@ export default function DraftRoomPage() {
       case "disconnected":
         return "bg-red-500";
     }
+  };
+
+  // Update the countdown trigger function
+  const triggerCountdown = () => {
+    socket.send(
+      JSON.stringify({
+        type: "start_countdown",
+      }),
+    );
+  };
+
+  // Update the countdown cancel function
+  const cancelCountdown = () => {
+    socket.send(
+      JSON.stringify({
+        type: "cancel_countdown",
+      }),
+    );
   };
 
   return (
@@ -1627,7 +1671,7 @@ export default function DraftRoomPage() {
 
                   {currentBid && (
                     <button
-                      onClick={() => setShowCountdown(true)}
+                      onClick={triggerCountdown}
                       className={`mt-2 rounded px-3 py-1 text-xs text-white sm:mt-0 sm:px-4 sm:py-2 sm:text-sm ${
                         showCountdown || isSelling
                           ? "cursor-not-allowed bg-gray-400"
@@ -1675,7 +1719,13 @@ export default function DraftRoomPage() {
           )}
 
           {/* Countdown overlay */}
-          {showCountdown && <Countdown onComplete={handleCountdownComplete} />}
+          {showCountdown && (
+            <Countdown
+              onComplete={handleCountdownComplete}
+              onCancel={cancelCountdown}
+              startTime={countdownStartTime}
+            />
+          )}
 
           {/* Loading overlay for player assignment */}
           {isAssigningPlayer && (
