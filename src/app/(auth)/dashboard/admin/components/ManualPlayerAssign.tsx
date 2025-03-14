@@ -11,6 +11,25 @@ interface Team {
   totalBudget: number;
 }
 
+interface Roster {
+  id: number;
+  teamId: number;
+  QB: number | null;
+  RB1: number | null;
+  RB2: number | null;
+  WR1: number | null;
+  WR2: number | null;
+  TE: number | null;
+  Flex1: number | null;
+  Flex2: number | null;
+  Bench1: number | null;
+  Bench2: number | null;
+  Bench3: number | null;
+  Bench4: number | null;
+  Bench5: number | null;
+  Bench6: number | null;
+}
+
 interface DraftState {
   selectedPlayer: null;
   currentBid: null;
@@ -21,6 +40,12 @@ interface DraftState {
   countdownStartTime: null;
   triggeredBy: null;
 }
+
+interface ErrorResponse {
+  error: string;
+}
+
+type RosterSpot = keyof Omit<Roster, "id" | "teamId">;
 
 export default function ManualPlayerAssign() {
   const [teams, setTeams] = useState<Team[]>([]);
@@ -74,25 +99,124 @@ export default function ManualPlayerAssign() {
     setMessage(null);
 
     try {
-      // Update NFL player and roster in one call
-      const response = await fetch(`/api/nfl-players/${selectedPlayerId}`, {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          assignedTeamId: selectedTeamId,
-          draftedAmount: price,
-          isKeeper: isKeeper,
-        }),
-      });
+      // Get the selected player for position info
+      const selectedPlayer = players.find((p) => p.id === selectedPlayerId);
+      if (!selectedPlayer) {
+        throw new Error("Selected player not found");
+      }
 
-      if (!response.ok) {
-        const errorData = (await response.json()) as { error: string };
+      // First, find an available roster spot
+      const rosterResponse = await fetch(`/api/rosters/${selectedTeamId}`);
+      if (!rosterResponse.ok) {
+        throw new Error("Failed to fetch roster");
+      }
+      const roster = (await rosterResponse.json()) as Roster;
+
+      // Determine which roster spot to use based on position
+      let rosterSpot: RosterSpot | null = null;
+      const position = selectedPlayer.position;
+
+      // Check position-specific spots first
+      if (position === "QB" && !roster.QB) {
+        rosterSpot = "QB";
+      } else if (position === "RB" && !roster.RB1) {
+        rosterSpot = "RB1";
+      } else if (position === "RB" && !roster.RB2) {
+        rosterSpot = "RB2";
+      } else if (position === "WR" && !roster.WR1) {
+        rosterSpot = "WR1";
+      } else if (position === "WR" && !roster.WR2) {
+        rosterSpot = "WR2";
+      } else if (position === "TE" && !roster.TE) {
+        rosterSpot = "TE";
+      } else {
+        // Check flex spots for RB/WR/TE
+        if (["RB", "WR", "TE"].includes(position)) {
+          if (!roster.Flex1) rosterSpot = "Flex1";
+          else if (!roster.Flex2) rosterSpot = "Flex2";
+        }
+      }
+
+      // If no position-specific or flex spot, try bench spots
+      if (!rosterSpot) {
+        const benchSpots: RosterSpot[] = [
+          "Bench1",
+          "Bench2",
+          "Bench3",
+          "Bench4",
+          "Bench5",
+          "Bench6",
+        ];
+        for (const spot of benchSpots) {
+          if (!roster[spot]) {
+            rosterSpot = spot;
+            break;
+          }
+        }
+      }
+
+      if (!rosterSpot) {
+        throw new Error("No available roster spots for this player");
+      }
+
+      // Update NFL player assignment
+      const playerResponse = await fetch(
+        `/api/nfl-players/${selectedPlayerId}`,
+        {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            assignedTeamId: selectedTeamId,
+            draftedAmount: price,
+            isKeeper: isKeeper,
+          }),
+        },
+      );
+
+      if (!playerResponse.ok) {
+        const errorData = (await playerResponse.json()) as ErrorResponse;
         throw new Error(errorData.error || "Failed to assign player");
       }
 
-      // Get the assigned player details
+      // Update roster with the new player
+      const updateRosterResponse = await fetch(
+        `/api/rosters/${selectedTeamId}`,
+        {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(
+            rosterSpot ? { [rosterSpot]: selectedPlayerId } : {},
+          ),
+        },
+      );
+
+      if (!updateRosterResponse.ok) {
+        throw new Error("Failed to update roster");
+      }
+
+      // Update team's budget
+      const updateBudgetResponse = await fetch(
+        `/api/teams/budget/${selectedTeamId}`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            amount: price,
+          }),
+        },
+      );
+
+      if (!updateBudgetResponse.ok) {
+        throw new Error("Failed to update team budget");
+      }
+
+      // Get the assigned player and team details for notification
       const assignedPlayer = players.find((p) => p.id === selectedPlayerId);
       const assignedTeam = teams.find((t) => t.id === selectedTeamId);
 
@@ -115,8 +239,12 @@ export default function ManualPlayerAssign() {
       // Refresh players list
       void fetchPlayers();
     } catch (error) {
-      setMessage({ type: "error", text: "Failed to assign player" });
       console.error("Error assigning player:", error);
+      setMessage({
+        type: "error",
+        text:
+          error instanceof Error ? error.message : "Failed to assign player",
+      });
     } finally {
       setIsAssigning(false);
     }
