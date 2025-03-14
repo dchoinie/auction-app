@@ -64,7 +64,8 @@ interface DraftMessage {
     | "heartbeat"
     | "update_nomination"
     | "start_countdown"
-    | "cancel_countdown";
+    | "cancel_countdown"
+    | "countdown_complete";
   users?: DraftUser[];
   message?: string;
   player?: NFLPlayer;
@@ -81,6 +82,7 @@ interface DraftMessage {
   };
   user?: DraftUser;
   userId?: string;
+  triggeredBy?: string;
 }
 
 interface BidHistoryItem {
@@ -173,6 +175,9 @@ export default function DraftRoomPage() {
   const { addNotification } = useNotifications();
   const [countdownStartTime, setCountdownStartTime] = useState<
     number | undefined
+  >(undefined);
+  const [countdownTriggeredBy, setCountdownTriggeredBy] = useState<
+    string | undefined
   >(undefined);
 
   // Add effect to update online users when Clerk session changes
@@ -271,6 +276,7 @@ export default function DraftRoomPage() {
             ) {
               setShowCountdown(true);
               setCountdownStartTime(data.state.countdownStartTime);
+              setCountdownTriggeredBy(data.state.triggeredBy);
             }
             break;
           case "welcome":
@@ -367,11 +373,25 @@ export default function DraftRoomPage() {
             if (data.startTime) {
               setShowCountdown(true);
               setCountdownStartTime(data.startTime);
+              setCountdownTriggeredBy(data.triggeredBy);
             }
             break;
           case "cancel_countdown":
             setShowCountdown(false);
             setCountdownStartTime(undefined);
+            setCountdownTriggeredBy(undefined);
+            break;
+          case "countdown_complete":
+            if (data.state) {
+              setSelectedPlayer(null);
+              setCurrentBid(null);
+              setBidHistory([]);
+              setBidAmount(1);
+              setIsPlayerConfirmed(false);
+              if (data.state.currentNominatorDraftOrder) {
+                setCurrentNominator(data.state.currentNominatorDraftOrder);
+              }
+            }
             break;
         }
       } catch (e) {
@@ -633,6 +653,13 @@ export default function DraftRoomPage() {
   };
 
   const handleCountdownComplete = useCallback(async () => {
+    // Only the user who triggered the countdown should handle the player assignment
+    if (!user || user.id !== countdownTriggeredBy) {
+      setShowCountdown(false);
+      setIsSelling(false);
+      return;
+    }
+
     // Set isSelling first to prevent any new bids
     setIsSelling(true);
     // Then remove the countdown display
@@ -729,19 +756,10 @@ export default function DraftRoomPage() {
         }
       }
 
-      // Clear the selected player and current bid
-      setSelectedPlayer(null);
-      setCurrentBid(null);
-      setBidHistory([]);
-      setBidAmount(1);
-      setIsPlayerConfirmed(false); // Reset confirmation status when player is drafted
-
-      // Notify other users via websocket
+      // Notify other users via websocket that countdown is complete
       socket.send(
         JSON.stringify({
-          type: "player_drafted",
-          player: selectedPlayer,
-          bid: currentBid,
+          type: "countdown_complete",
           state: {
             currentRound,
             currentNominatorDraftOrder,
@@ -757,7 +775,6 @@ export default function DraftRoomPage() {
       );
     } catch (error) {
       console.error("Error finalizing draft:", error);
-      // You might want to show an error message to the user here
       addNotification({
         message: "Error finalizing draft. Please try again.",
         type: "error",
@@ -765,8 +782,11 @@ export default function DraftRoomPage() {
     } finally {
       setIsAssigningPlayer(false);
       setIsSelling(false);
+      setCountdownTriggeredBy(undefined);
     }
   }, [
+    user,
+    countdownTriggeredBy,
     selectedPlayer,
     currentBid,
     socket,
@@ -820,9 +840,12 @@ export default function DraftRoomPage() {
 
   // Update the countdown trigger function
   const triggerCountdown = () => {
+    if (!user) return;
+    setCountdownTriggeredBy(user.id);
     socket.send(
       JSON.stringify({
         type: "start_countdown",
+        triggeredBy: user.id,
       }),
     );
   };

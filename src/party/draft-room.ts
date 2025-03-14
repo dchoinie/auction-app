@@ -32,6 +32,7 @@ interface DraftState {
   currentNominatorDraftOrder: number;
   isCountdownActive?: boolean;
   countdownStartTime?: number;
+  countdownTriggeredBy?: string;
 }
 
 interface DraftMessage {
@@ -45,13 +46,15 @@ interface DraftMessage {
     | "heartbeat"
     | "update_nomination"
     | "start_countdown"
-    | "cancel_countdown";
+    | "cancel_countdown"
+    | "countdown_complete";
   user?: DraftUser;
   userId?: string;
   player?: NFLPlayer;
   bid?: DraftBid;
   state?: DraftState;
   startTime?: number;
+  triggeredBy?: string;
 }
 
 export default class DraftRoom implements PartyKit.Server {
@@ -69,6 +72,7 @@ export default class DraftRoom implements PartyKit.Server {
     currentNominatorDraftOrder: 1,
     isCountdownActive: false,
     countdownStartTime: undefined,
+    countdownTriggeredBy: undefined,
   };
 
   constructor(readonly party: PartyKit.Party) {
@@ -253,10 +257,12 @@ export default class DraftRoom implements PartyKit.Server {
         case "start_countdown":
           this.currentState.isCountdownActive = true;
           this.currentState.countdownStartTime = Date.now();
+          this.currentState.countdownTriggeredBy = data.triggeredBy;
           this.party.broadcast(
             JSON.stringify({
               type: "start_countdown",
               startTime: this.currentState.countdownStartTime,
+              triggeredBy: this.currentState.countdownTriggeredBy,
             }),
           );
           break;
@@ -264,9 +270,27 @@ export default class DraftRoom implements PartyKit.Server {
         case "cancel_countdown":
           this.currentState.isCountdownActive = false;
           this.currentState.countdownStartTime = undefined;
+          this.currentState.countdownTriggeredBy = undefined;
           this.party.broadcast(
             JSON.stringify({
               type: "cancel_countdown",
+            }),
+          );
+          break;
+
+        case "countdown_complete":
+          // Reset countdown state
+          this.currentState.isCountdownActive = false;
+          this.currentState.countdownStartTime = undefined;
+          this.currentState.countdownTriggeredBy = undefined;
+          // Clear the selected player and current bid
+          this.currentState.selectedPlayer = null;
+          this.currentState.currentBid = null;
+          // Broadcast the state update
+          this.party.broadcast(
+            JSON.stringify({
+              type: "countdown_complete",
+              state: this.currentState,
             }),
           );
           break;
