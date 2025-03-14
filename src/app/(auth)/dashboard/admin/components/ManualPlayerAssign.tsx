@@ -105,25 +105,6 @@ export default function ManualPlayerAssign() {
         throw new Error("Selected player not found");
       }
 
-      // Update roster with the new player - single API call
-      const updateRosterResponse = await fetch(
-        `/api/rosters/${selectedTeamId}/assign-player`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            playerId: selectedPlayerId,
-            position: selectedPlayer.position,
-          }),
-        },
-      );
-
-      if (!updateRosterResponse.ok) {
-        throw new Error("Failed to update roster");
-      }
-
       // Update NFL player assignment
       const playerResponse = await fetch(
         `/api/nfl-players/${selectedPlayerId}`,
@@ -143,6 +124,25 @@ export default function ManualPlayerAssign() {
       if (!playerResponse.ok) {
         const errorData = (await playerResponse.json()) as ErrorResponse;
         throw new Error(errorData.error || "Failed to assign player");
+      }
+
+      // Update roster with the new player
+      const updateRosterResponse = await fetch(
+        `/api/rosters/${selectedTeamId}/assign-player`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            playerId: selectedPlayerId,
+            position: selectedPlayer.position,
+          }),
+        },
+      );
+
+      if (!updateRosterResponse.ok) {
+        throw new Error("Failed to update roster");
       }
 
       // Update team's budget
@@ -168,10 +168,28 @@ export default function ManualPlayerAssign() {
       const assignedTeam = teams.find((t) => t.id === selectedTeamId);
 
       if (assignedPlayer && assignedTeam) {
-        // Send notification to all clients about the manual assignment
+        // First, reset the PartyKit server state
+        socket.send(
+          JSON.stringify({
+            type: "init_state",
+            state: {
+              selectedPlayer: null,
+              currentBid: null,
+              users: [], // The server will maintain the current users
+              currentNominatorDraftOrder: 1, // Reset to first nominator
+              currentRound: 1, // Reset to first round
+              isCountdownActive: false,
+              countdownStartTime: null,
+              triggeredBy: null,
+            },
+          }),
+        );
+
+        // Then broadcast the reset to all clients
         socket.send(
           JSON.stringify({
             type: "draft_reset",
+            message: `${assignedPlayer.firstName} ${assignedPlayer.lastName} manually assigned to ${assignedTeam.name} for $${price}`,
           }),
         );
       }
