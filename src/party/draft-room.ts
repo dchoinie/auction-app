@@ -33,6 +33,20 @@ interface DraftState {
   isCountdownActive?: boolean;
   countdownStartTime?: number;
   countdownTriggeredBy?: string;
+  remainingAmount: number | null;
+  maxBid: number | null;
+  positionsFilled: Record<string, number>;
+  positionsRemaining: {
+    QB: number;
+    RB: number;
+    WR: number;
+    TE: number;
+    FLEX: number;
+    BENCH: number;
+  };
+  lastBidTeam: string | null;
+  lastBidAmount: number | null;
+  users: DraftUser[];
 }
 
 interface DraftMessage {
@@ -47,7 +61,8 @@ interface DraftMessage {
     | "update_nomination"
     | "start_countdown"
     | "cancel_countdown"
-    | "countdown_complete";
+    | "countdown_complete"
+    | "init_state";
   user?: DraftUser;
   userId?: string;
   player?: NFLPlayer;
@@ -73,6 +88,20 @@ export default class DraftRoom implements PartyKit.Server {
     isCountdownActive: false,
     countdownStartTime: undefined,
     countdownTriggeredBy: undefined,
+    remainingAmount: null,
+    maxBid: null,
+    positionsFilled: {},
+    positionsRemaining: {
+      QB: 1,
+      RB: 2,
+      WR: 2,
+      TE: 1,
+      FLEX: 2,
+      BENCH: 6,
+    },
+    lastBidTeam: null,
+    lastBidAmount: null,
+    users: [],
   };
 
   constructor(readonly party: PartyKit.Party) {
@@ -137,6 +166,25 @@ export default class DraftRoom implements PartyKit.Server {
       console.log("Server received message:", data.type, data);
 
       switch (data.type) {
+        case "init_state":
+          if (data.state) {
+            // Update all state fields
+            this.currentState = {
+              ...this.currentState,
+              ...data.state,
+              // Ensure we keep the active users
+              users: Array.from(this.activeUsers.values()),
+            };
+            // Broadcast the full state to all clients
+            this.party.broadcast(
+              JSON.stringify({
+                type: "init_state",
+                state: this.currentState,
+              }),
+            );
+          }
+          break;
+
         case "join":
           if (data.user) {
             console.log("User joining:", data.user);

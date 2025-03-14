@@ -234,6 +234,20 @@ export default function ManualPlayerAssign() {
               isCountdownActive: false,
               countdownStartTime: null,
               triggeredBy: null,
+              // Add fields for budget and position tracking
+              remainingAmount: null,
+              maxBid: null,
+              positionsFilled: {},
+              positionsRemaining: {
+                QB: 1,
+                RB: 2,
+                WR: 2,
+                TE: 1,
+                FLEX: 2,
+                BENCH: 6,
+              },
+              lastBidTeam: null,
+              lastBidAmount: null,
             },
           }),
         );
