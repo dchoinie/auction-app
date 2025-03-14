@@ -15,8 +15,32 @@ export const useNominationStore = create<NominationState>()(
     (set) => ({
       currentRound: 1, // Start with round 1
       currentNominatorDraftOrder: 1, // Start with draft order 1
-      setCurrentNominator: (draftOrder) =>
-        set({ currentNominatorDraftOrder: draftOrder }),
+      setCurrentNominator: (draftOrder) => {
+        set((state) => {
+          // If the draft order is changing to a value that doesn't make sense for the current round,
+          // we need to adjust the round number
+          if (state.currentRound % 2 === 1) {
+            // Odd rounds go 1 -> 10
+            if (draftOrder < state.currentNominatorDraftOrder) {
+              // If we're going backwards in an odd round, we need to move to the next round
+              return {
+                currentRound: state.currentRound + 1,
+                currentNominatorDraftOrder: draftOrder,
+              };
+            }
+          } else {
+            // Even rounds go 10 -> 1
+            if (draftOrder > state.currentNominatorDraftOrder) {
+              // If we're going forwards in an even round, we need to move to the next round
+              return {
+                currentRound: state.currentRound + 1,
+                currentNominatorDraftOrder: draftOrder,
+              };
+            }
+          }
+          return { currentNominatorDraftOrder: draftOrder };
+        });
+      },
       moveToNextNominator: () =>
         set((state) => {
           // In odd rounds (1, 3, 5...), go from 1 to 10

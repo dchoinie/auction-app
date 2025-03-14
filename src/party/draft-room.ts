@@ -226,10 +226,18 @@ export default class DraftRoom implements PartyKit.Server {
             this.currentState.currentRound = data.state.currentRound;
             this.currentState.currentNominatorDraftOrder =
               data.state.currentNominatorDraftOrder;
+            // Broadcast the updated nomination state to all clients
             this.party.broadcast(
               JSON.stringify({
                 type: "update_nomination",
-                state: this.currentState,
+                state: {
+                  currentRound: this.currentState.currentRound,
+                  currentNominatorDraftOrder:
+                    this.currentState.currentNominatorDraftOrder,
+                  selectedPlayer: this.currentState.selectedPlayer,
+                  currentBid: this.currentState.currentBid,
+                  users: Array.from(this.activeUsers.values()),
+                },
               }),
             );
           }

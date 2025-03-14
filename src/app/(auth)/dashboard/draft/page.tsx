@@ -249,28 +249,12 @@ export default function DraftRoomPage() {
             if (data.state?.currentBid) {
               setSelectedPlayer(data.state.selectedPlayer);
               setCurrentBid(data.state.currentBid);
-              setBidAmount(
-                data.state.currentBid ? data.state.currentBid.amount + 1 : 1,
-              );
-              setIsPlayerConfirmed(true); // If there's a current bid, the player is confirmed
-
-              // Fix type safety in bid history
-              const newBid: BidHistoryItem = {
-                ...data.state.currentBid,
-                isHighestBid: true,
-              };
-              setBidHistory((prev) =>
-                [
-                  newBid,
-                  ...prev.map((bid) => ({ ...bid, isHighestBid: false })),
-                ].slice(0, 10),
-              );
+              setBidAmount(data.state.currentBid.amount + bidIncrement);
             }
 
-            // Sync nomination state
-            if (data.state) {
+            // Update nomination state
+            if (data.state?.currentNominatorDraftOrder) {
               setCurrentNominator(data.state.currentNominatorDraftOrder);
-              // Note: We don't set currentRound here as it's managed by the store
             }
             break;
           case "welcome":
@@ -342,8 +326,25 @@ export default function DraftRoomPage() {
             break;
           case "update_nomination":
             if (data.state) {
+              console.log("Received nomination update:", data.state);
+              // Update the nomination store
               setCurrentNominator(data.state.currentNominatorDraftOrder);
-              // Note: We don't set currentRound here as it's managed by the store
+
+              // Update other state if needed
+              if (data.state.selectedPlayer !== undefined) {
+                setSelectedPlayer(data.state.selectedPlayer);
+              }
+              if (data.state.currentBid !== undefined) {
+                setCurrentBid(data.state.currentBid);
+                if (data.state.currentBid) {
+                  setBidAmount(data.state.currentBid.amount + bidIncrement);
+                }
+              }
+              if (data.state.users) {
+                setActiveUserIds(
+                  new Set(data.state.users.map((user) => user.id)),
+                );
+              }
             }
             break;
         }
