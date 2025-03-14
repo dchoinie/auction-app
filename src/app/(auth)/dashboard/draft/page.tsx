@@ -308,9 +308,9 @@ export default function DraftRoomPage() {
             if (data.bid) {
               setCurrentBid(data.bid);
               setBidAmount(data.bid.amount + 1);
-              setIsPlayerConfirmed(true); // If there's a bid, the player is confirmed
+              setIsPlayerConfirmed(true);
 
-              // Ensure bid has all required fields
+              // Create new bid history item
               const newBid: BidHistoryItem = {
                 userId: data.bid.userId,
                 userName: data.bid.userName,
@@ -319,12 +319,26 @@ export default function DraftRoomPage() {
                 isHighestBid: true,
               };
 
-              setBidHistory((prev) =>
-                [
+              // Update bid history ensuring uniqueness and proper ordering
+              setBidHistory((prev) => {
+                // Remove any existing bids from this user for this amount (prevent duplicates)
+                const filteredHistory = prev.filter(
+                  (bid) =>
+                    !(
+                      bid.userId === newBid.userId &&
+                      bid.amount === newBid.amount
+                    ),
+                );
+
+                // Add new bid and mark all others as not highest
+                return [
                   newBid,
-                  ...prev.map((bid) => ({ ...bid, isHighestBid: false })),
-                ].slice(0, 10),
-              );
+                  ...filteredHistory.map((bid) => ({
+                    ...bid,
+                    isHighestBid: false,
+                  })),
+                ].slice(0, 10); // Keep only last 10 bids
+              });
             }
             break;
           case "user_joined":
@@ -1735,55 +1749,57 @@ export default function DraftRoomPage() {
                   Bid History
                 </h3>
                 <div className="space-y-2">
-                  {bidHistory.map((bid, index) => (
-                    <div
-                      key={bid.timestamp}
-                      className={`rounded-lg border p-2 transition-all sm:p-3 ${
-                        bid.isHighestBid
-                          ? "border-2 border-green-500 bg-green-50 shadow-lg"
-                          : bid.userId === user?.id
-                            ? "border-2 border-blue-400 bg-blue-50"
-                            : "border-2 border-red-300 bg-red-50"
-                      }`}
-                    >
-                      <div className="flex items-center justify-between">
-                        <span
-                          className={`text-sm font-medium sm:text-base ${
-                            bid.isHighestBid
-                              ? "text-green-800"
-                              : bid.userId === user?.id
-                                ? "text-blue-800"
-                                : "text-red-800"
-                          }`}
-                        >
-                          {bid.userName}
-                          {bid.userId === user?.id && " (You)"}
-                        </span>
-                        <span
-                          className={`text-base font-bold sm:text-lg ${
-                            bid.isHighestBid
-                              ? "text-green-700"
-                              : bid.userId === user?.id
-                                ? "text-blue-700"
-                                : "text-red-700"
-                          }`}
-                        >
-                          ${bid.amount}
-                        </span>
-                      </div>
+                  {bidHistory
+                    .sort((a, b) => b.timestamp - a.timestamp) // Ensure newest bids are always at top
+                    .map((bid) => (
                       <div
-                        className={`text-xs sm:text-sm ${
+                        key={`${bid.userId}-${bid.amount}-${bid.timestamp}`}
+                        className={`rounded-lg border-2 p-2 transition-all sm:p-3 ${
                           bid.isHighestBid
-                            ? "text-green-600"
+                            ? "border-green-500 bg-green-50 shadow-lg" // Highest bid is always green
                             : bid.userId === user?.id
-                              ? "text-blue-600"
-                              : "text-red-600"
+                              ? "border-blue-400 bg-blue-50" // Your non-highest bids are blue
+                              : "border-red-300 bg-red-50" // Other users' non-highest bids are red
                         }`}
                       >
-                        {new Date(bid.timestamp).toLocaleTimeString()}
+                        <div className="flex items-center justify-between">
+                          <span
+                            className={`text-sm font-medium sm:text-base ${
+                              bid.isHighestBid
+                                ? "text-green-800"
+                                : bid.userId === user?.id
+                                  ? "text-blue-800"
+                                  : "text-red-800"
+                            }`}
+                          >
+                            {bid.userName}
+                            {bid.userId === user?.id && " (You)"}
+                          </span>
+                          <span
+                            className={`text-base font-bold sm:text-lg ${
+                              bid.isHighestBid
+                                ? "text-green-700"
+                                : bid.userId === user?.id
+                                  ? "text-blue-700"
+                                  : "text-red-700"
+                            }`}
+                          >
+                            ${bid.amount}
+                          </span>
+                        </div>
+                        <div
+                          className={`text-xs sm:text-sm ${
+                            bid.isHighestBid
+                              ? "text-green-600"
+                              : bid.userId === user?.id
+                                ? "text-blue-600"
+                                : "text-red-600"
+                          }`}
+                        >
+                          {new Date(bid.timestamp).toLocaleTimeString()}
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    ))}
                 </div>
               </div>
             </div>
