@@ -1717,21 +1717,48 @@ export default function DraftRoomPage() {
                   {bidHistory.map((bid, index) => (
                     <div
                       key={bid.timestamp}
-                      className={`rounded-lg border p-2 sm:p-3 ${
+                      className={`rounded-lg border p-2 transition-all sm:p-3 ${
                         bid.isHighestBid
-                          ? "border-green-500 bg-green-50"
-                          : "bg-white"
+                          ? "border-2 border-green-500 bg-green-50 shadow-lg"
+                          : bid.userId === user?.id
+                            ? "border-2 border-blue-400 bg-blue-50"
+                            : "border-2 border-red-300 bg-red-50"
                       }`}
                     >
                       <div className="flex items-center justify-between">
-                        <span className="text-sm font-medium sm:text-base">
+                        <span
+                          className={`text-sm font-medium sm:text-base ${
+                            bid.isHighestBid
+                              ? "text-green-800"
+                              : bid.userId === user?.id
+                                ? "text-blue-800"
+                                : "text-red-800"
+                          }`}
+                        >
                           {bid.userName}
+                          {bid.userId === user?.id && " (You)"}
                         </span>
-                        <span className="text-base font-bold sm:text-lg">
+                        <span
+                          className={`text-base font-bold sm:text-lg ${
+                            bid.isHighestBid
+                              ? "text-green-700"
+                              : bid.userId === user?.id
+                                ? "text-blue-700"
+                                : "text-red-700"
+                          }`}
+                        >
                           ${bid.amount}
                         </span>
                       </div>
-                      <div className="text-xs text-gray-500 sm:text-sm">
+                      <div
+                        className={`text-xs sm:text-sm ${
+                          bid.isHighestBid
+                            ? "text-green-600"
+                            : bid.userId === user?.id
+                              ? "text-blue-600"
+                              : "text-red-600"
+                        }`}
+                      >
                         {new Date(bid.timestamp).toLocaleTimeString()}
                       </div>
                     </div>
