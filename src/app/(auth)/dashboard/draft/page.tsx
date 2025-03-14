@@ -558,7 +558,7 @@ export default function DraftRoomPage() {
   };
 
   const handleBidSubmit = () => {
-    if (!user || !selectedPlayer) return;
+    if (!user || !selectedPlayer || isSelling) return; // Only check isSelling, not showCountdown
 
     // Find the user's team
     const userTeam = teams.find((team) => team.ownerId === user.id);
@@ -600,8 +600,14 @@ export default function DraftRoomPage() {
       return; // Don't allow invalid bids
     }
 
-    // Cancel any active countdown
-    setShowCountdown(false);
+    // Reset countdown if it's active
+    if (showCountdown) {
+      socket.send(
+        JSON.stringify({
+          type: "cancel_countdown",
+        }),
+      );
+    }
 
     const newBid: DraftBid = {
       userId: user.id,
