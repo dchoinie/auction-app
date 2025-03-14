@@ -180,16 +180,17 @@ export default function ManualPlayerAssign() {
         throw new Error(errorData.error || "Failed to assign player");
       }
 
-      // Update roster with the new player using the existing PATCH endpoint
+      // Update roster with the new player using the add-player endpoint
       const updateRosterResponse = await fetch(
-        `/api/rosters/${selectedTeamId}`,
+        `/api/rosters/${selectedTeamId}/add-player`,
         {
           method: "PATCH",
           headers: {
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
-            [rosterSpot]: selectedPlayerId,
+            playerId: selectedPlayerId,
+            position: selectedPlayer.position,
           }),
         },
       );
