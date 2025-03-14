@@ -741,12 +741,14 @@ export default function DraftRoomPage() {
       // Move to next nominator after player is drafted
       // Keep moving to next nominator until we find a team with available spots
       let nextNominatorFound = false;
+      let nextNominatorDraftOrder = currentNominatorDraftOrder;
       while (!nextNominatorFound) {
         moveToNextNominator();
+        nextNominatorDraftOrder = currentNominatorDraftOrder;
 
         // Find the current nominator's team
         const currentNominatorTeam = teams.find(
-          (t) => t.draftOrder === currentNominatorDraftOrder,
+          (t) => t.draftOrder === nextNominatorDraftOrder,
         );
 
         if (!currentNominatorTeam) {
@@ -786,7 +788,29 @@ export default function DraftRoomPage() {
         }
       }
 
-      // Notify other users via websocket that countdown is complete
+      // First, broadcast the nomination update to all users
+      socket.send(
+        JSON.stringify({
+          type: "update_nomination",
+          state: {
+            selectedPlayer: null,
+            currentBid: null,
+            currentRound,
+            currentNominatorDraftOrder: nextNominatorDraftOrder,
+            users: Array.from(activeUserIds).map((id) => ({
+              id,
+              name: teams.find((t) => t.ownerId === id)?.ownerName || "",
+              isActive: true,
+              joinedAt: Date.now(),
+            })),
+            isCountdownActive: false,
+            countdownStartTime: null,
+            triggeredBy: null,
+          } satisfies DraftState,
+        }),
+      );
+
+      // Then notify other users that countdown is complete
       socket.send(
         JSON.stringify({
           type: "countdown_complete",
@@ -794,7 +818,7 @@ export default function DraftRoomPage() {
             selectedPlayer: null,
             currentBid: null,
             currentRound,
-            currentNominatorDraftOrder,
+            currentNominatorDraftOrder: nextNominatorDraftOrder,
             users: Array.from(activeUserIds).map((id) => ({
               id,
               name: teams.find((t) => t.ownerId === id)?.ownerName || "",
