@@ -364,7 +364,7 @@ export default function DraftRoomPage() {
           case "update_nomination":
             if (data.state) {
               console.log("Received nomination update:", data.state);
-              // Update the nomination store
+              // Update the nomination store with the new state
               setCurrentNominator(data.state.currentNominatorDraftOrder);
 
               // Update other state if needed
@@ -743,23 +743,22 @@ export default function DraftRoomPage() {
       let nextNominatorFound = false;
       let nextNominatorDraftOrder = currentNominatorDraftOrder;
       while (!nextNominatorFound) {
+        // Move to next nominator and capture the new value
         moveToNextNominator();
         nextNominatorDraftOrder = currentNominatorDraftOrder;
 
-        // Find the current nominator's team
-        const currentNominatorTeam = teams.find(
+        // Find the next nominator's team
+        const nextNominatorTeam = teams.find(
           (t) => t.draftOrder === nextNominatorDraftOrder,
         );
 
-        if (!currentNominatorTeam) {
+        if (!nextNominatorTeam) {
           // If no team found, we've gone through all teams
           break;
         }
 
         // Check if the team has any available spots
-        const roster = rosters.find(
-          (r) => r.teamId === currentNominatorTeam.id,
-        );
+        const roster = rosters.find((r) => r.teamId === nextNominatorTeam.id);
         const rosterPositions = [
           "QB",
           "RB1",
@@ -785,6 +784,8 @@ export default function DraftRoomPage() {
 
         if (filledSpots < 14) {
           nextNominatorFound = true;
+          // Set the current nominator to the next valid nominator
+          setCurrentNominator(nextNominatorDraftOrder);
         }
       }
 
