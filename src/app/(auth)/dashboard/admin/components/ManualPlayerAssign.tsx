@@ -253,11 +253,12 @@ export default function ManualPlayerAssign() {
           }),
         );
 
-        // Then broadcast the reset to all clients
+        // Then broadcast the reset to all clients with refresh flag
         socket.send(
           JSON.stringify({
             type: "draft_reset",
             message: `${assignedPlayer.firstName} ${assignedPlayer.lastName} manually assigned to ${assignedTeam.name} for $${price}`,
+            shouldRefreshData: true,
           }),
         );
       }

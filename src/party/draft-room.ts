@@ -62,7 +62,8 @@ interface DraftMessage {
     | "start_countdown"
     | "cancel_countdown"
     | "countdown_complete"
-    | "init_state";
+    | "init_state"
+    | "server_reset";
   user?: DraftUser;
   userId?: string;
   player?: NFLPlayer;
@@ -166,6 +167,50 @@ export default class DraftRoom implements PartyKit.Server {
       console.log("Server received message:", data.type, data);
 
       switch (data.type) {
+        case "server_reset":
+          // Reset the server state
+          this.currentState = {
+            selectedPlayer: null,
+            currentBid: null,
+            currentRound: 1,
+            currentNominatorDraftOrder: 1,
+            isCountdownActive: false,
+            countdownStartTime: undefined,
+            countdownTriggeredBy: undefined,
+            remainingAmount: null,
+            maxBid: null,
+            positionsFilled: {},
+            positionsRemaining: {
+              QB: 1,
+              RB: 2,
+              WR: 2,
+              TE: 1,
+              FLEX: 2,
+              BENCH: 6,
+            },
+            lastBidTeam: null,
+            lastBidAmount: null,
+            users: Array.from(this.activeUsers.values()),
+          };
+
+          // Broadcast the reset state to all clients
+          this.party.broadcast(
+            JSON.stringify({
+              type: "init_state",
+              state: this.currentState,
+            }),
+          );
+
+          // Then broadcast the reset notification
+          this.party.broadcast(
+            JSON.stringify({
+              type: "draft_reset",
+              message: "Draft has been reset by admin",
+              shouldRefreshData: true,
+            }),
+          );
+          break;
+
         case "init_state":
           if (data.state) {
             // Update all state fields

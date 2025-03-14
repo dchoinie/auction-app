@@ -183,10 +183,10 @@ export default function AdminPage() {
       // Reset nomination store AFTER all resets are complete
       resetNomination();
 
-      // Broadcast draft reset to all clients
+      // Send server reset message to PartyKit server
       socket.send(
         JSON.stringify({
-          type: "draft_reset",
+          type: "server_reset",
         }),
       );
 
