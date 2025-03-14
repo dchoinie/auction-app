@@ -47,10 +47,16 @@ interface DraftUser {
   lastHeartbeat?: number;
 }
 
-// interface DraftState {
-//   selectedPlayer: NFLPlayer | null;
-//   currentBid: DraftBid | null;
-// }
+interface DraftState {
+  selectedPlayer: NFLPlayer | null;
+  currentBid: DraftBid | null;
+  users: DraftUser[];
+  currentNominatorDraftOrder: number;
+  currentRound: number;
+  isCountdownActive: boolean;
+  countdownStartTime: number | null;
+  triggeredBy: string | null;
+}
 
 interface DraftMessage {
   type:
@@ -71,15 +77,7 @@ interface DraftMessage {
   player?: NFLPlayer;
   bid?: DraftBid;
   startTime?: number;
-  state?: {
-    selectedPlayer: NFLPlayer | null;
-    currentBid: DraftBid | null;
-    users: DraftUser[];
-    currentNominatorDraftOrder: number;
-    currentRound: number;
-    isCountdownActive?: boolean;
-    countdownStartTime?: number;
-  };
+  state?: DraftState;
   user?: DraftUser;
   userId?: string;
   triggeredBy?: string;
@@ -276,7 +274,10 @@ export default function DraftRoomPage() {
             ) {
               setShowCountdown(true);
               setCountdownStartTime(data.state.countdownStartTime);
-              setCountdownTriggeredBy(data.state.triggeredBy);
+              // Use optional chaining for triggeredBy since it's optional
+              if (data.state?.triggeredBy) {
+                setCountdownTriggeredBy(data.state.triggeredBy);
+              }
             }
             break;
           case "welcome":
@@ -527,7 +528,16 @@ export default function DraftRoomPage() {
             currentBid: null,
             currentRound,
             currentNominatorDraftOrder,
-          },
+            users: Array.from(activeUserIds).map((id) => ({
+              id,
+              name: teams.find((t) => t.ownerId === id)?.ownerName || "",
+              isActive: true,
+              joinedAt: Date.now(),
+            })),
+            isCountdownActive: false,
+            countdownStartTime: null,
+            triggeredBy: null,
+          } satisfies DraftState,
         }),
       );
     }
@@ -761,9 +771,20 @@ export default function DraftRoomPage() {
         JSON.stringify({
           type: "countdown_complete",
           state: {
+            selectedPlayer: null,
+            currentBid: null,
             currentRound,
             currentNominatorDraftOrder,
-          },
+            users: Array.from(activeUserIds).map((id) => ({
+              id,
+              name: teams.find((t) => t.ownerId === id)?.ownerName || "",
+              isActive: true,
+              joinedAt: Date.now(),
+            })),
+            isCountdownActive: false,
+            countdownStartTime: null,
+            triggeredBy: null,
+          } satisfies DraftState,
         }),
       );
 
